@@ -35,6 +35,8 @@ All dashboard access to Firestore SHALL execute through the local Python process
 
 The dashboard SHALL summarize the collector health record and most recent stored observation, including last attempt, last success, age of the latest observation, consecutive failures, pending reconciliations, raw daily energy value and unit, most recent interval value and duration, interval status, source outcomes, and available principal device state.
 
+The dashboard SHALL prioritize the most useful health and energy answers, use plain-language labels, and keep technical diagnostics behind clearly named secondary controls. It SHALL provide a visible legend for quality states and concise hints for ranges, coverage, refreshing, observation inspection, and raw payload loading.
+
 #### Scenario: Current data is healthy
 - **WHEN** a recent successful observation and healthy collector record exist
 - **THEN** the overview SHALL present their values and healthy status without requiring the user to inspect raw documents
@@ -47,6 +49,12 @@ The dashboard SHALL summarize the collector health record and most recent stored
 #### Scenario: A field is unavailable
 - **WHEN** an observation lacks an energy, state, health, or reconciliation field
 - **THEN** the dashboard SHALL show that value as unavailable rather than inventing a default
+
+#### Scenario: Operator is unfamiliar with telemetry terminology
+- **WHEN** the operator opens the dashboard without prior knowledge of its status model
+- **THEN** the page SHALL identify a clear starting point and group related information by purpose
+- **AND** it SHALL explain normal, anomalous, missing, stale, and incomplete states without relying on color alone
+- **AND** it SHALL provide actionable hints beside the controls they describe
 
 ### Requirement: Telemetry is visualized without weakening quality semantics
 

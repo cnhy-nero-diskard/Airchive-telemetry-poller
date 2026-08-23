@@ -79,21 +79,29 @@ This retains the ability to inspect provider payloads without transferring 2–4
 
 Charts use `energy.intervalValueNumber` and leave null values as gaps. Non-normal statuses and independent flags remain visible in an adjacent status layer/table. A selected-range total sums only non-null stored intervals and is paired with observed/expected slot coverage plus a warning when any interval is missing or unusable. Times are rendered in `LG_DAY_TIMEZONE`, while cache synchronization remains UTC.
 
-The initial page contains:
+The page uses progressive disclosure so the common health and energy questions
+stay above technical diagnostics:
 
 ```text
 +--------------------------------------------------------------+
-| Airchive  [last sync] [Refresh] [Clear cache]                |
+| Airchive                           [Range] [Refresh now]       |
+| plain-language health / stale / cached-data banner           |
 +----------------+----------------+-----------------------------+
-| Collector      | Latest energy  | Latest device state         |
-| health / age   | raw + interval | operation / mode / temp     |
-+----------------+----------------+-----------------------------+
-| Range + timezone | interval-consumption chart + coverage     |
+| Latest sample  | Interval use   | Daily counter | Quality     |
 +--------------------------------------------------------------+
-| Recent observations [all | anomalies]                       |
-| selected normalized details [Load raw payload]              |
+| Energy over time + coverage                                 |
+| Visible status legend and quick interaction hints           |
++--------------------------------------------------------------+
+| Explore observations [all | anomalies]                      |
+| selected summary [technical fields] [Load raw payload]      |
++--------------------------------------------------------------+
+| [Collector & device details] [Advanced local-cache controls] |
 +--------------------------------------------------------------+
 ```
+
+Status explanations pair words with symbols rather than relying on color. The
+default view keeps source diagnostics, normalized JSON, raw payloads, and cache
+reset controls collapsed until the operator asks for them.
 
 ### D8: Version and recover the cache locally
 

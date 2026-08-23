@@ -44,3 +44,8 @@
 - [x] 6.2 Run the dashboard repository and cache integration tests against the Firestore emulator; verify pagination, incremental upgrade/reconciliation refresh, raw-on-demand access, and zero writes
 - [x] 6.3 Run the dashboard locally against ambient Firestore credentials and verify overview, chart, filters, detail, manual refresh, and cache reuse against stored telemetry without changing any Firestore document
 - [x] 6.4 Run the full pytest suite and Ruff checks, verify existing collector/inspection behavior remains unchanged, run `openspec validate add-lightweight-ui-wrapper --strict`, and run `git diff --check`
+
+## 7. Usability refinement
+
+- [x] 7.1 Rework the dashboard into a plain-language hierarchy with a clear starting point, compact primary controls, friendly table labels, and progressive disclosure for collector, device, normalized, raw, and cache details; verify existing interaction and safety tests remain green
+- [x] 7.2 Add a visible, non-color-only legend plus contextual hints for status, coverage, time range, refresh, anomaly filtering, and raw loading; verify Streamlit app tests assert the guidance remains browser-visible
