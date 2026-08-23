@@ -25,7 +25,7 @@
 - [x] 3.6 Add startup validation of the configured energy property against `energy_profile["result"]["property"]`, and verify an unsupported property fails startup with a message naming the supported ones
 - [x] 3.7 Implement `validate-counter` sampling the current-day value repeatedly and reporting the observed sequence, whether it advances intraday, apparent update latency, and numeric precision; verify it issues no control command
 - [x] 3.8 Run `validate-counter` across several hours of normal air-conditioner use and record the findings
-- [ ] 3.9 Determine the effective LG day boundary from observed counter resets plus any timezone the API exposes, and verify the finding is recorded and any mismatch with `LG_DAY_TIMEZONE` is reported to the operator
+- [x] 3.9 Determine the effective LG day boundary from observed counter resets plus any timezone the API exposes, and verify the finding is recorded and any mismatch with `LG_DAY_TIMEZONE` is reported to the operator
 - [x] 3.10 **Gate:** confirm the current-day counter advances intraday. If it does not, stop and revisit the proposal before implementing energy-delta behavior
 - [ ] 3.11 Record all discovery findings in the documentation — confirmed energy property, unit, precision, update latency, day boundary, and the readable properties this device actually exposes — and verify the provisional schema is reconciled against them
 

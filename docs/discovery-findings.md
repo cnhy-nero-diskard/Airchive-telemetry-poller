@@ -171,7 +171,7 @@ recoverable.
 
 ---
 
-## 4. The LG day boundary — pending
+## 4. The LG day boundary — settled: Asia/Manila midnight
 
 The daily bucket resets on a timezone owned by LG and the device, which may not
 be the collector's configured one. A wrong boundary silently corrupts every
@@ -179,15 +179,47 @@ day-rollover reconstruction.
 
 | Question | Answer |
 |---|---|
-| Observed reset time (local clock) | _pending — needs a run across midnight_ |
+| Observed reset time (local clock) | **00:00 Asia/Manila** (16:00 UTC) on 2026-08-24 |
 | Configured `LG_DAY_TIMEZONE` | `Asia/Manila` |
-| Do they agree? | |
-| Any timezone the API itself exposes for the device or account | **none** — neither the profile, the state, nor the usage response carries a timezone |
+| Do they agree? | **Yes** — no discrepancy to report |
+| Any timezone the API itself exposes | **none** — neither the profile, the state, nor the usage response carries one; `usedDate` is a bare `YYYYMMDD` |
 
-The API exposing no timezone anywhere is itself a finding: the boundary can only
-be established by observing when the counter resets, which is what the 24-hour
-unattended run (task 9.7) is for. `usedDate` is a bare `YYYYMMDD` string with no
-zone attached.
+Observed directly in the deployed series:
+
+```
+20260823T155500Z  23:55 Manila  raw 1114   +16  NORMAL
+20260823T160000Z  00:00 Manila  raw    0   +16  DAY_ROLLOVER_RESOLVED
+20260823T160500Z  00:05 Manila  raw   16   +16  NORMAL
+```
+
+The counter reset from 1114 to 0 exactly at Manila midnight. Since the API
+publishes no timezone anywhere, this could only ever have been established by
+observation — which is why the design made it a gate rather than an assumption.
+
+### The cross-midnight reconstruction, live
+
+The rollover cycle fetched LG's finalized total for the closing day, cached it
+in `dailyTotals/2026-08-23`, and reconstructed the interval:
+
+```
+finalPreviousDayTotal   1130   (LG's finalized total for 2026-08-23)
+previous.rawDailyTotal  1114   (last reading before midnight, 23:55)
+rawDailyTotal              0   (first reading of the new day, 00:00)
+
+(1130 - 1114) + 0 = 16 Wh over 302s        status DAY_ROLLOVER_RESOLVED
+```
+
+**16 Wh is the strongest available evidence that this is right.** Every
+neighbouring five-minute interval that night measured 15–17 Wh, and the air
+conditioner did not change behaviour at midnight — so a correct cross-midnight
+interval *must* be indistinguishable in magnitude from its neighbours. A naive
+subtraction would have recorded −1114.
+
+No deferral was needed: LG had already finalized the previous day by 00:00, so
+the total was available on the first cycle of the new day, the queue in
+`runtime/reconciliation` stayed empty, and no `DAY_ROLLOVER_UNRESOLVED` record
+was produced. The deferred path therefore remains exercised only by tests; it
+will be used if LG is ever slower to finalize.
 
 ---
 
@@ -246,6 +278,7 @@ Answers to the design's open questions:
       decimals, handled by taking precision from the source values.
 - [x] The energy extractor handles the real response shape — `dataList` /
       `usedDate` / property-named value, with a regression test.
-- [ ] `LG_DAY_TIMEZONE` matches the observed reset boundary — pending §4.
+- [x] `LG_DAY_TIMEZONE` matches the observed reset boundary — the counter
+      resets at 00:00 Asia/Manila, exactly as configured.
 - [ ] The documented limitations in [operations.md](operations.md) match what
       was observed here — update once Gate B closes.
