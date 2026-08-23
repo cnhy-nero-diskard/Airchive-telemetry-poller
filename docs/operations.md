@@ -498,6 +498,44 @@ plus one extra on each day boundary for the previous day's finalized total.
 
 ---
 
+## Alerting
+
+The collector fails *quietly* by design — a cycle that cannot reach LG records
+the failure and returns, rather than crashing. That is right for resilience and
+wrong for attention: without alerting, the most likely way this project loses
+history is an expired token, nobody noticing for a month, and thirty days that
+cannot be recreated.
+
+Two policies close that, both notifying `paulandretadiar012703@gmail.com`:
+
+| Policy | Fires when | Why it matters |
+|---|---|---|
+| **Collector has stopped producing observations** | No completed cycle for 30 minutes, against a 5-minute schedule | Catches everything that stops execution outright: scheduler disabled, job broken, billing lapsed, image unpullable |
+| **Fatal condition, collection will not resume on its own** | `AUTH_FATAL`, `CONFIG_FATAL`, or any `ERROR`-severity cycle log | These are deliberately never retried, so nothing else will surface them |
+
+The first rests on a log-based metric, `airchive_cycle_success`, counting
+`cycle complete` records from the job. The second matches structured log fields
+directly — no code change was needed to enable it, because the runtime spec
+already required every cycle to log its per-source failure classes.
+
+Both alert emails carry their own runbook. The fatal one includes the token
+rotation, which is the case it will most often be reporting:
+
+```bash
+printf '%s' "$NEW_PAT" | gcloud secrets versions add lg-thinq-pat --data-file=-
+```
+
+The job reads `lg-thinq-pat:latest`, so the next scheduled cycle picks up a new
+version with no redeploy.
+
+**What is deliberately not alerted:** `DEVICE_OFFLINE`, `RATE_LIMITED`,
+`UNCHANGED_COUNTER`, coarse intervals, and unresolved rollovers. Each is a
+normal, self-correcting condition that the series already records. Paging on
+them would train you to ignore the alerts that matter. Query them with
+`airchive anomalies` instead.
+
+---
+
 ## Credential hygiene
 
 `ThinQAPIException` is constructed by the SDK with the **outbound request
