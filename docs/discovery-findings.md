@@ -93,10 +93,26 @@ automatically and is marked `"device"`. Without it the series would be a column
 of bare integers whose obvious reading — kilowatt-hours — is wrong by a factor
 of a thousand.
 
-**Note on the first stored observation.** `20260823T124000Z` predates this
-change and carries `unit: null`. It is left as written rather than backfilled:
-the series is append-only, and that record honestly reflects what was known when
-it was taken. Any reader must tolerate the field being absent on early records.
+**Note on early records without a unit.** Observations from `20260823T124000Z`
+through `20260823T162000Z` carry `unit: null`, and most lack the `unitSource`
+key entirely. Two separate causes: the very first record predates the feature,
+and the first deployed image was built before it and pushed without a rebuild,
+so the Cloud Run job read an environment variable its code did not know about.
+
+They are left as written rather than backfilled, on the same principle that
+governs the whole series: it is append-only, and those records honestly reflect
+what the collector knew when it wrote them. Nothing is unrecoverable — the raw
+values are intact and the unit is documented here.
+
+`collectorVersion` separates them cleanly, which is what that field is for:
+
+```
+20260823T162500Z   82  Wh    configured   0.1.1
+20260823T162000Z   64  null  (absent)     0.1.0
+```
+
+Any reader must therefore tolerate `unit` and `unitSource` being absent on
+records written by `0.1.0`.
 
 ### Consequence: integer arithmetic, zero decimal places
 
@@ -280,5 +296,26 @@ Answers to the design's open questions:
       `usedDate` / property-named value, with a regression test.
 - [x] `LG_DAY_TIMEZONE` matches the observed reset boundary — the counter
       resets at 00:00 Asia/Manila, exactly as configured.
-- [ ] The documented limitations in [operations.md](operations.md) match what
-      was observed here — update once Gate B closes.
+- [x] The documented limitations in [operations.md](operations.md) match what
+      was observed here.
+
+---
+
+## 8. Series health after the first day
+
+Checked across every observation stored on 2026-08-23:
+
+| | |
+|---|---|
+| Observations | 43, spanning `20260823T124000Z` … `20260823T162500Z` |
+| **Negative intervals** | **0** — the invariant the day-rollover handling exists to protect |
+| Anomalous records | 0 |
+| Statuses | `NORMAL` 40, `DAY_ROLLOVER_RESOLVED` 1, `COARSE_INTERVAL` 1, `NEW_BASELINE` 1 |
+| Flags raised | none |
+
+Every status present is one that was *supposed* to appear: a baseline for the
+first observation, one coarse interval across the gap between manual runs, one
+resolved rollover at midnight, and normal intervals for everything else. No
+`UNCHANGED_COUNTER` yet — expected, since the ~303s provider period drifts
+against the 300s poll interval slowly enough that aliasing takes hours to
+surface.

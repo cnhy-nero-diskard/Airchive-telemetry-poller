@@ -27,7 +27,7 @@
 - [x] 3.8 Run `validate-counter` across several hours of normal air-conditioner use and record the findings
 - [x] 3.9 Determine the effective LG day boundary from observed counter resets plus any timezone the API exposes, and verify the finding is recorded and any mismatch with `LG_DAY_TIMEZONE` is reported to the operator
 - [x] 3.10 **Gate:** confirm the current-day counter advances intraday. If it does not, stop and revisit the proposal before implementing energy-delta behavior
-- [ ] 3.11 Record all discovery findings in the documentation — confirmed energy property, unit, precision, update latency, day boundary, and the readable properties this device actually exposes — and verify the provisional schema is reconciled against them
+- [x] 3.11 Record all discovery findings in the documentation — confirmed energy property, unit, precision, update latency, day boundary, and the readable properties this device actually exposes — and verify the provisional schema is reconciled against them
 
 ## 4. Observation model
 
