@@ -128,6 +128,24 @@ free tier; ~9k Firestore writes/month against 20k/day free.
 `thinqconnect` import plus interpreter start — 2–4 s per run, irrelevant at this
 cadence. The mitigation is a slim base image, not a different architecture.
 
+### What is actually deployed
+
+| | |
+|---|---|
+| Project | `airchive-telemetry-poller` |
+| Region | `asia-southeast1` (same as Firestore) |
+| Image | `asia-southeast1-docker.pkg.dev/airchive-telemetry-poller/airchive/collector:0.1.0` |
+| Job | `airchive-poll`, args `poll --once`, 512Mi / 1 CPU, `--max-retries=1`, 300s timeout |
+| Collector identity | `airchive-collector@…` — **`roles/datastore.user` only** |
+| Scheduler identity | `airchive-scheduler@…` — **`roles/run.invoker` on that one job only** |
+| Secret | `lg-thinq-pat`, injected as `LG_THINQ_PAT` at runtime |
+| Trigger | `airchive-poll-5min`, `*/5 * * * *`, Asia/Manila |
+
+Two identities rather than one is deliberate. Cloud Scheduler needs
+`run.invoker` to start the job; granting that to the collector would widen an
+identity whose entire point is that it can do nothing but write telemetry. Each
+service account holds exactly one role.
+
 ### Steps
 
 ```bash

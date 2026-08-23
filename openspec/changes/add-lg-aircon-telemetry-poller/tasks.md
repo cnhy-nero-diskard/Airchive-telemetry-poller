@@ -83,11 +83,11 @@
 ## 8. Deployment
 
 - [x] 8.1 Add a container image with a slim base, and verify it builds and runs `poll --once` locally against ADC
-- [ ] 8.2 Create the deployment service account limited to `roles/datastore.user`, and verify the collector can write telemetry and cannot perform unrelated project operations
-- [ ] 8.3 Store the ThinQ PAT in Secret Manager and inject it at runtime, and verify no credential material is present in the built image
-- [ ] 8.4 Deploy the Cloud Run Job using the attached service account with no key file, and verify a manual execution writes one observation
-- [ ] 8.5 Create the Cloud Scheduler trigger at the five-minute cadence, and verify three consecutive scheduled executions produce three distinct sequential sample documents
-- [ ] 8.6 Verify runtime logs appear in Cloud Logging and that a stored observation can be traced to its originating log records by sample ID
+- [x] 8.2 Create the deployment service account limited to `roles/datastore.user`, and verify the collector can write telemetry and cannot perform unrelated project operations
+- [x] 8.3 Store the ThinQ PAT in Secret Manager and inject it at runtime, and verify no credential material is present in the built image
+- [x] 8.4 Deploy the Cloud Run Job using the attached service account with no key file, and verify a manual execution writes one observation
+- [x] 8.5 Create the Cloud Scheduler trigger at the five-minute cadence, and verify three consecutive scheduled executions produce three distinct sequential sample documents
+- [x] 8.6 Verify runtime logs appear in Cloud Logging and that a stored observation can be traced to its originating log records by sample ID
 - [x] 8.7 Record the deployment topology evaluation against cost, reliability, cadence, credential handling, restart behavior, observability, and rate limits, and verify the rationale is captured in the documentation
 
 ## 9. Documentation and closeout
