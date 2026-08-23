@@ -9,11 +9,11 @@
 ## 2. Firebase environment — operator-gated
 
 - [x] 2.1 Write the setup guide covering Firebase project creation (suggested `lg-ac-telemetry`), enabling Cloud Firestore Standard, and region selection, stating explicitly that the region is permanent once created; verify the guide is committed and a reader can follow it without prior context
-- [ ] 2.2 Walk the operator through creating the project and database per the guide, and verify the database is visible in the Firebase Console
-- [ ] 2.3 Set Firestore client security rules to deny all client access and verify a client-side read attempt is rejected while server-side Admin access still succeeds
-- [ ] 2.4 Document and perform local Application Default Credentials setup (`gcloud auth application-default login`), with a documented escape hatch and revocation steps for `GOOGLE_APPLICATION_CREDENTIALS`; verify no key file exists inside the repository
-- [ ] 2.5 Implement `check-firestore` performing a write/read/delete round trip against a scratch document, and verify it exits zero locally and the document was observable in the Console before deletion
-- [ ] 2.6 **Gate:** confirm `check-firestore` passes before any collector logic is implemented, and record the confirmation in the setup guide
+- [x] 2.2 Walk the operator through creating the project and database per the guide, and verify the database is visible in the Firebase Console
+- [x] 2.3 Set Firestore client security rules to deny all client access and verify a client-side read attempt is rejected while server-side Admin access still succeeds
+- [x] 2.4 Document and perform local Application Default Credentials setup (`gcloud auth application-default login`), with a documented escape hatch and revocation steps for `GOOGLE_APPLICATION_CREDENTIALS`; verify no key file exists inside the repository
+- [x] 2.5 Implement `check-firestore` performing a write/read/delete round trip against a scratch document, and verify it exits zero locally and the document was observable in the Console before deletion
+- [x] 2.6 **Gate:** confirm `check-firestore` passes before any collector logic is implemented, and record the confirmation in the setup guide
 
 ## 3. ThinQ access and discovery — findings-gated
 
@@ -51,7 +51,7 @@
 - [x] 5.3 Implement transactional idempotent writes with completeness precedence per design D7, and verify tests assert: repeated execution of one slot creates exactly one document; a more complete retry upgrades it; an equal retry is a no-op; a less complete late write is refused
 - [x] 5.4 Store `scheduledAt`, `observedAt`, and `persistedAt` as native Firestore timestamps plus `localDate` and the timezone used, and verify a range query over `observedAt` and a grouping by `localDate` both work
 - [x] 5.5 Implement raw payload retention (`raw.energy`, `raw.state`) excluding all credential material, and verify a test asserts no authorization header or token is present in a persisted document
-- [ ] 5.6 Configure the single-field index exemption on `raw` with array and map descent disabled, commit the index configuration, and verify the exemption is active in the Firestore console
+- [x] 5.6 Configure the single-field index exemption on `raw` with array and map descent disabled, commit the index configuration, and verify the exemption is active in the Firestore console
 - [x] 5.7 Implement the bounded descending previous-reading lookup per design D12, and verify tests cover finding a usable baseline, skipping an unusable most-recent observation, and exhausting the window
 - [x] 5.8 Implement versioned profile metadata caching separate from the observation series, and verify an observation embeds no full profile while referencing the active metadata version
 - [x] 5.9 Implement the `dailyTotals` cache for finalized per-day totals, and verify a test asserts the finalized total is fetched once per day and reused rather than re-requested per cycle

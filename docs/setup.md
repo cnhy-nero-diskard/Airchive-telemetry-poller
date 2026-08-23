@@ -171,9 +171,31 @@ For a non-interactive run: `airchive check-firestore --pause-seconds 30`, or
 > **Gate A.** Do not build or run collector polling logic until this passes.
 > The first poller run must not also be the first test of connectivity.
 
-**Result — fill this in when you run it:**
+**Result — recorded:**
 
-- [ ] `check-firestore` passed on ______ (date) against project ______
+- [x] **Gate A passed on 2026-08-23** against project `airchive-telemetry-poller`.
+      `check-firestore` exited 0: `_airchiveCheck/check-11e3aa8db5aa` was written,
+      read back with a matching nonce, visible in the console, then deleted and
+      the deletion verified.
+
+Provisioned environment, for the record:
+
+| | |
+|---|---|
+| Project ID | `airchive-telemetry-poller` (project number 397051202974) |
+| Database | `(default)`, Standard edition |
+| Location | **`asia-southeast1`** (Singapore) — permanent |
+| Delete protection | `DELETE_PROTECTION_ENABLED` |
+| Point-in-time recovery | disabled (append-only data; delete protection is the guard) |
+| Client rules | deny-all, released 2026-08-23 |
+| Index exemption | `telemetry.raw` and `dailyTotals.raw` carry no single-field indexes |
+| Local credentials | ADC in `%APPDATA%\gcloud`, no key file in the repository |
+
+Client lockout was verified three ways rather than assumed: an unauthenticated
+REST read returns `403`; the Rules Playground denies `get`, `list`, `create`,
+and a `runtime/collector` read for an unauthenticated client; and a deliberate
+control expecting `ALLOW` on the same path fails, which is what proves the
+first two results mean what they appear to.
 
 ---
 
