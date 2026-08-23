@@ -82,7 +82,7 @@
 
 ## 8. Deployment
 
-- [ ] 8.1 Add a container image with a slim base, and verify it builds and runs `poll --once` locally against ADC
+- [x] 8.1 Add a container image with a slim base, and verify it builds and runs `poll --once` locally against ADC
 - [ ] 8.2 Create the deployment service account limited to `roles/datastore.user`, and verify the collector can write telemetry and cannot perform unrelated project operations
 - [ ] 8.3 Store the ThinQ PAT in Secret Manager and inject it at runtime, and verify no credential material is present in the built image
 - [ ] 8.4 Deploy the Cloud Run Job using the attached service account with no key file, and verify a manual execution writes one observation
