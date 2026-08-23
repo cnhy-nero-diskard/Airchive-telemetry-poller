@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import os
 import re
+from collections.abc import Collection
 from dataclasses import dataclass
 from pathlib import Path
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -68,7 +69,12 @@ class CollectorConfig:
     log_level: str
 
 
-def load_dotenv(path: str | Path = ".env", environ: dict[str, str] | None = None) -> None:
+def load_dotenv(
+    path: str | Path = ".env",
+    environ: dict[str, str] | None = None,
+    *,
+    allowed_names: Collection[str] | None = None,
+) -> None:
     """Load `KEY=value` lines from a local .env file without overriding real env vars.
 
     Deliberately tiny: the deployed runtime supplies configuration through the
@@ -86,6 +92,8 @@ def load_dotenv(path: str | Path = ".env", environ: dict[str, str] | None = None
         key, _, value = line.partition("=")
         key = key.strip()
         value = value.strip().strip('"').strip("'")
+        if allowed_names is not None and key not in allowed_names:
+            continue
         if key and key not in env:
             env[key] = value
 

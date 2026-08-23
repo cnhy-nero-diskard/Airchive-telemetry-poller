@@ -52,6 +52,14 @@ def _nested_get(document: dict[str, Any], path: str) -> Any:
     return node
 
 
+def _nested_set(document: dict[str, Any], path: str, value: Any) -> None:
+    node = document
+    parts = path.split(".")
+    for part in parts[:-1]:
+        node = node.setdefault(part, {})
+    node[parts[-1]] = copy.deepcopy(value)
+
+
 class FakeSnapshot:
     def __init__(self, doc_id: str, data: dict[str, Any] | None, reference: FakeDocumentRef):
         self.id = doc_id
@@ -124,6 +132,7 @@ class FakeQuery:
         self._start_after: Any = None
         self._limit: int | None = None
         self._filters: list[_Filter] = []
+        self._selected_fields: tuple[str, ...] | None = None
 
     def _clone(self) -> FakeQuery:
         clone = FakeQuery(self._client, self._collection_path)
@@ -131,6 +140,7 @@ class FakeQuery:
         clone._start_after = self._start_after
         clone._limit = self._limit
         clone._filters = list(self._filters)
+        clone._selected_fields = self._selected_fields
         return clone
 
     def order_by(self, field_path: str, direction: str = "ASCENDING") -> FakeQuery:
@@ -159,8 +169,10 @@ class FakeQuery:
         )
         return clone
 
-    def select(self, _fields: Any) -> FakeQuery:
-        return self._clone()
+    def select(self, fields: Any) -> FakeQuery:
+        clone = self._clone()
+        clone._selected_fields = tuple(str(field) for field in fields)
+        return clone
 
     def stream(self):
         prefix = f"{self._collection_path}/"
@@ -186,6 +198,13 @@ class FakeQuery:
         if self._start_after is not None and self._order:
             field_path, direction = self._order
             cursor = self._start_after
+            if isinstance(cursor, FakeSnapshot):
+                cursor_document = cursor.to_dict() or {}
+                cursor = (
+                    cursor.id
+                    if field_path == "__name__"
+                    else _nested_get(cursor_document, field_path)
+                )
 
             def key_of(item):
                 path, data = item
@@ -203,7 +222,19 @@ class FakeQuery:
 
         for path, data in entries:
             self._client.reads.append(path)
-            yield FakeSnapshot(path.split("/")[-1], data, FakeDocumentRef(self._client, path))
+            projected = data
+            if self._selected_fields is not None:
+                projected = {}
+                for field_path in self._selected_fields:
+                    value = _nested_get(data, field_path)
+                    if value is not None:
+                        _nested_set(projected, field_path, value)
+                self._client.query_selections.append(
+                    (self._collection_path, self._selected_fields)
+                )
+            yield FakeSnapshot(
+                path.split("/")[-1], projected, FakeDocumentRef(self._client, path)
+            )
 
 
 class FakeCollectionRef(FakeQuery):
@@ -246,6 +277,7 @@ class FakeFirestoreClient:
         self.documents: dict[str, dict[str, Any]] = copy.deepcopy(documents or {})
         self.reads: list[str] = []
         self.writes: list[str] = []
+        self.query_selections: list[tuple[str, tuple[str, ...]]] = []
         self.transaction_attempts = 0
         #: Called once before each transaction commit; use it to simulate a
         #: concurrent writer landing between the read and the commit.
