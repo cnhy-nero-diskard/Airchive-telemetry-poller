@@ -12,6 +12,7 @@ license = { text = "MIT" }
 dependencies = [
     "thinqconnect>=1.0.13",
     "google-cloud-firestore>=2.16",
+    "streamlit>=1.37",
     # ZoneInfo has no system tz database on Windows or on slim container images.
     "tzdata>=2024.1",
 ]

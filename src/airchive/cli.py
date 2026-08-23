@@ -79,6 +79,8 @@ def build_parser() -> argparse.ArgumentParser:
         "compare", help="Diff the latest stored observation against a fresh live reading"
     )
 
+    sub.add_parser("dashboard", help="Open the local read-only telemetry dashboard")
+
     return parser
 
 
@@ -89,6 +91,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     if not args.command:
         parser.print_help()
         return _EXIT_USAGE
+
+    if args.command == "dashboard":
+        from airchive.dashboard.launch import run
+
+        return run()
 
     load_dotenv()
 
