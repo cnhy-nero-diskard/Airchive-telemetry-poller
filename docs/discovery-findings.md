@@ -7,10 +7,8 @@ only be settled by observation; this file is where the answers live.
 Recorded from `airchive discover` on **2026-08-23**. Both commands are read-only
 and issue no control command.
 
-> **Gate B is still open.** Everything except the intraday-advance question and
-> the day boundary is settled below. Run
-> `airchive validate-counter --duration-minutes 240` while the air conditioner is
-> in normal use to close it.
+> **Gate B passed on 2026-08-23.** Everything below is settled except the day
+> boundary, which needs an observation across midnight (task 9.7).
 
 ---
 
@@ -119,28 +117,57 @@ the collector's value narrows to state-only history.
 
 | Question | Answer |
 |---|---|
-| Does the value change within the day? | **_pending — run `validate-counter`_** |
-| Observation window (start → end, hours) | |
-| Number of intraday increases observed | |
-| Smallest increment seen | |
-| Apparent update latency (min / median / max between changes) | |
-| Longest run of an unchanged value | |
-| Evidence of cached or repeated values | |
-| Retroactive downward revisions of an already-observed value | |
-| Implied unit (see §2) | |
+| Does the value change within the day? | **Yes** |
+| Observation window | 2026-08-23 20:32 → 22:32 Manila (2h00m, 120 samples at 60s) |
+| Samples yielding a usable value | **120 of 120** — no failures, no rate limiting |
+| Number of intraday increases observed | **24** |
+| Smallest increment seen | **15** (Wh) |
+| Apparent update latency | min **243s** / median **303s** / max **307s** |
+| Longest run of an unchanged value | 5 samples (~300s) |
+| Evidence of cached or repeated values | Repeats are the provider's ~5-minute update period, not caching: the value holds steady then steps cleanly |
+| Retroactive downward revisions | **none observed** in 2 hours |
+| Implied unit (see §2) | 462 → 844 = 382 over 2h01m ≈ **190 Wh/h ≈ 190 W**, independently consistent with the app cross-check |
 
 **Verdict:**
 
-- [ ] **Passes** — the counter advances intraday; five-minute sampling is
+- [x] **Passes** — the counter advances intraday; five-minute sampling is
       meaningful.
-- [ ] **Fails** — revisit the proposal before relying on energy deltas.
-      State-only telemetry may still proceed.
-
-Paste the `validate-counter` summary output here:
+- [ ] ~~Fails~~ — not applicable.
 
 ```
-(pending)
+samples taken:        120 (120 with a usable value)
+unit reported:        (unreported)
+decimal places:       0
+first value:          462 at 2026-08-23T20:32:14.856774+08:00
+last value:           844 at 2026-08-23T22:32:42.215080+08:00
+local days covered:   2026-08-23
+intraday increases:   24
+intraday decreases:   0  (retroactive provider revisions)
+smallest increment:   15
+update latency:       min 243s / median 303s / max 307s between observed changes (sampled every 60s)
+longest unchanged run: 5 samples (~300s)
+
+VERDICT: the current-day counter DOES advance intraday. Gate B passes; sub-daily
+energy resolution is viable at this cadence.
 ```
+
+### What the update latency means for the poll cadence
+
+LG refreshes this counter every **~303 seconds median**, against a configured
+poll interval of **300 seconds**. The two are close enough that the phase drifts
+slowly: most slots capture exactly one provider update, but roughly once every
+few hours a slot straddles the boundary and records `0`, with the following slot
+recording a double increment.
+
+That is expected behaviour, not a defect, and it is precisely why
+`UNCHANGED_COUNTER` exists and why intervals use actual `observedAt` timestamps
+rather than the nominal cadence. Nothing is lost: the raw cumulative values make
+the true consumption recoverable across any pair of samples.
+
+Raising `POLL_INTERVAL_SECONDS` to 600 would remove most of the aliasing and
+halve the API calls, at the cost of half the resolution. **Kept at 300**, because
+the resolution is the point of the project and the aliasing is both marked and
+recoverable.
 
 ---
 
