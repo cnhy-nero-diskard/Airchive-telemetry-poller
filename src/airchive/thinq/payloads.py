@@ -31,11 +31,21 @@ _VALUE_KEYS = (
 #: Keys that carry the unit of measure.
 _UNIT_KEYS = ("unit", "unitOfMeasure", "energyUnit", "usageUnit", "measureUnit")
 
-#: Keys whose values are lists of per-period records.
-_LIST_KEYS = ("energyData", "usageData", "data", "usageList", "items", "list", "energyUsage")
+#: Keys whose values are lists of per-period records. `dataList` is the one this
+#: device actually uses, confirmed by discovery; the rest are kept as fallbacks.
+_LIST_KEYS = (
+    "dataList",
+    "energyData",
+    "usageData",
+    "data",
+    "usageList",
+    "items",
+    "list",
+    "energyUsage",
+)
 
-#: Keys that carry the period's date.
-_DATE_KEYS = ("date", "startDate", "usageDate", "day", "period")
+#: Keys that carry the period's date. `usedDate` is the observed one.
+_DATE_KEYS = ("usedDate", "date", "startDate", "usageDate", "day", "period")
 
 
 @dataclass(frozen=True)

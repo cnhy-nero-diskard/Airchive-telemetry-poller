@@ -148,3 +148,58 @@ def test_a_missing_unit_is_reported_as_missing_not_assumed():
     reading = extract_energy_reading({"value": "1.5"}, "energyConsumption")
     assert reading is not None
     assert reading.unit is None
+
+
+# --- The shape this device actually returns (discovered 2026-08-23) ----------
+
+REAL_USAGE_RESPONSE = {
+    "resultCode": "0000",
+    "result": {
+        "dataList": [{"usedDate": "20260823", "energyUsage": 462}],
+        "property": ["energyUsage"],
+    },
+}
+
+REAL_ENERGY_PROFILE = {"resultCode": "0000", "result": {"property": ["energyUsage"]}}
+
+
+def test_the_real_device_energy_profile_is_read():
+    assert supported_energy_properties(REAL_ENERGY_PROFILE) == ["energyUsage"]
+
+
+def test_the_real_device_usage_response_is_extracted():
+    """WIN_056905_WW returns dataList/usedDate, and the property name is the value key."""
+    reading = extract_energy_reading(
+        REAL_USAGE_RESPONSE, "energyUsage", day_label="2026-08-23"
+    )
+
+    assert reading is not None
+    assert reading.value == Decimal(462)
+    assert reading.date_label == "20260823"
+    # The counter is an integer and the API reports no unit at all.
+    assert reading.decimal_places == 0
+    assert reading.unit is None
+
+
+def test_a_day_the_real_response_does_not_cover_yields_nothing():
+    """The rollover path asks for yesterday; a mislabelled value would corrupt it."""
+    assert (
+        extract_energy_reading(REAL_USAGE_RESPONSE, "energyUsage", day_label="2026-08-22")
+        is None
+    )
+
+
+def test_integer_counters_difference_without_inventing_precision():
+    earlier = extract_energy_reading(
+        {"result": {"dataList": [{"usedDate": "20260823", "energyUsage": 462}]}},
+        "energyUsage",
+        day_label="2026-08-23",
+    )
+    later = extract_energy_reading(
+        {"result": {"dataList": [{"usedDate": "20260823", "energyUsage": 519}]}},
+        "energyUsage",
+        day_label="2026-08-23",
+    )
+
+    assert later.value - earlier.value == Decimal(57)
+    assert str(later.value - earlier.value) == "57"
