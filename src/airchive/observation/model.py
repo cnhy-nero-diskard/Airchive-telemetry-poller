@@ -160,6 +160,9 @@ class Observation:
     energy_property: str | None = None
     raw_daily_total: Decimal | None = None
     unit: str | None = None
+    #: "device" when the API reported the unit, "configured" when the operator
+    #: established it out of band. Never let the two be mistaken for each other.
+    unit_source: str | None = None
     interval_value: Decimal | None = None
     interval_seconds: float | None = None
     previous: PreviousReading | None = None
@@ -198,6 +201,7 @@ class Observation:
             "energy": {
                 "property": self.energy_property,
                 "unit": self.unit,
+                "unitSource": self.unit_source,
                 **decimal_fields("rawDailyTotal", self.raw_daily_total),
                 **decimal_fields("intervalValue", self.interval_value),
                 "intervalSeconds": self.interval_seconds,

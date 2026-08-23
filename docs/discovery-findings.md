@@ -67,16 +67,38 @@ inventing a value — which is the behaviour the spec demands — and
 `airchive/thinq/payloads.py` has since been reconciled against the real shape,
 with a regression test pinned to this exact payload.
 
-### The unit is unknown, and is recorded as unknown
+### The unit is watt-hours — established by cross-check, not by the API
 
-The API reports no unit. `462` is stored with `unit: null`, because the spec
-forbids assuming one. **Working hypothesis: watt-hours** — 462 Wh ≈ 0.46 kWh is
-a plausible partial-day figure for a room AC, whereas 462 kWh in one day is not.
+The API reports no unit anywhere in the response. The unit was settled instead
+by comparing the counter against LG's own display for the same day:
 
-This is a hypothesis, not a finding. `validate-counter` settles it: a running
-1–2 kW unit should add roughly 1,000–2,000 per hour if the unit is Wh, i.e.
-~80–170 per five-minute slot. Record the observed rate below and update this
-section.
+| Source | Reading | Time |
+|---|---|---|
+| ThinQ Connect API | `509` | 2026-08-23 20:44 |
+| **LG ThinQ app** | **0.54 kWh** | 2026-08-23 ~20:50 |
+
+540 Wh against a counter reading 509 and climbing ~185/hour — **the unit is
+watt-hours**, and the observed rate of ~185 Wh/h means the unit averages ~185 W,
+consistent with an inverter compressor holding 26 °C rather than running at full
+load.
+
+Because the API itself asserts nothing, this is recorded as
+`LG_ENERGY_UNIT=Wh` and stored on every observation as:
+
+```json
+"energy": { "unit": "Wh", "unitSource": "configured" }
+```
+
+`unitSource` distinguishes an operator-established unit from a device-reported
+one. A device that ever starts reporting its own unit overrides this
+automatically and is marked `"device"`. Without it the series would be a column
+of bare integers whose obvious reading — kilowatt-hours — is wrong by a factor
+of a thousand.
+
+**Note on the first stored observation.** `20260823T124000Z` predates this
+change and carries `unit: null`. It is left as written rather than backfilled:
+the series is append-only, and that record honestly reflects what was known when
+it was taken. Any reader must tolerate the field being absent on early records.
 
 ### Consequence: integer arithmetic, zero decimal places
 

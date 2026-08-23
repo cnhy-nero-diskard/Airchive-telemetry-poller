@@ -72,6 +72,26 @@ def _condition_flags(*results: RequestResult) -> list[QualityFlag]:
     return flags
 
 
+def _resolve_unit(
+    energy: RequestResult, configured_unit: str | None
+) -> tuple[str | None, str | None]:
+    """Decide the unit and say where it came from.
+
+    A device that reports its own unit is always believed over configuration.
+    Where it reports none — as this air conditioner does, returning a bare
+    integer — an operator-established unit is recorded with `unitSource` marking
+    it as such, so a later reader gets a number that means something without
+    ever being told the device claimed it.
+    """
+    if not energy.ok:
+        return None, None
+    if energy.unit:
+        return energy.unit, "device"
+    if configured_unit:
+        return configured_unit, "configured"
+    return None, None
+
+
 def build_observation(
     *,
     sample_id: str,
@@ -87,6 +107,7 @@ def build_observation(
     has_prior_observation: bool = False,
     final_previous_day_total: Decimal | None = None,
     nominal_interval_seconds: int = 300,
+    configured_unit: str | None = None,
     metadata_version: str | None = None,
     collector_version: str | None = None,
 ) -> Observation:
@@ -105,6 +126,8 @@ def build_observation(
     for flag in (*outcome.flags, *_condition_flags(energy, state)):
         quality.add(flag)
 
+    unit, unit_source = _resolve_unit(energy, configured_unit)
+
     return Observation(
         sample_id=sample_id,
         device_id=device_id,
@@ -117,7 +140,8 @@ def build_observation(
         state_source=state.to_outcome(),
         energy_property=energy_property,
         raw_daily_total=energy.value if energy.ok else None,
-        unit=energy.unit if energy.ok else None,
+        unit=unit,
+        unit_source=unit_source,
         interval_value=outcome.interval_value,
         interval_seconds=outcome.interval_seconds,
         previous=previous,

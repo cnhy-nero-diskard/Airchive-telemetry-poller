@@ -39,12 +39,17 @@ class ThinqConfig:
     client_id: str
     device_id: str
     energy_property: str
+    #: Unit the operator established for the energy counter, for devices whose
+    #: API reports none. Recorded with its provenance, never presented as a
+    #: device claim.
+    energy_unit: str | None = None
 
     def __repr__(self) -> str:  # never render the PAT
         return (
             f"ThinqConfig(country_code={self.country_code!r}, "
             f"client_id={self.client_id!r}, device_id={self.device_id!r}, "
-            f"energy_property={self.energy_property!r}, pat=<redacted>)"
+            f"energy_property={self.energy_property!r}, "
+            f"energy_unit={self.energy_unit!r}, pat=<redacted>)"
         )
 
 
@@ -164,6 +169,7 @@ def load_discovery_config(
             client_id=client_id,
             device_id=_get(env, "LG_DEVICE_ID"),
             energy_property=_get(env, "LG_ENERGY_PROPERTY"),
+            energy_unit=_get(env, "LG_ENERGY_UNIT") or None,
         ),
         tz,
         tz_name,
@@ -275,6 +281,7 @@ def load_config(environ: dict[str, str] | None = None) -> CollectorConfig:
             client_id=client_id,
             device_id=device_id,
             energy_property=energy_property,
+            energy_unit=_get(env, "LG_ENERGY_UNIT") or None,
         ),
         firestore=FirestoreConfig(project_id=project_id),
         poll_interval_seconds=interval,

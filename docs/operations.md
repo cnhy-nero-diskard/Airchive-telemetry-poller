@@ -57,6 +57,7 @@ present and never overrides real environment variables).
 | `LG_CLIENT_ID` | yes | — | Generated **once** and reused forever. Startup fails rather than inventing one. |
 | `LG_DEVICE_ID` | yes | — | Target device, from `airchive discover`. |
 | `LG_ENERGY_PROPERTY` | yes | — | Energy property to poll. Must appear in the device's energy profile. |
+| `LG_ENERGY_UNIT` | no | unset | Unit of the energy counter, for devices whose API reports none. Stored with `unitSource: "configured"`; a device-reported unit always wins. |
 | `FIREBASE_PROJECT_ID` | yes | — | Project holding the telemetry database. |
 | `POLL_INTERVAL_SECONDS` | no | `300` | Sampling cadence. Interval classification always uses *actual* observation times, never this. |
 | `LG_DAY_TIMEZONE` | no | `Asia/Manila` | Timezone that defines the local day and the rollover boundary. Confirm it empirically — see [setup.md](setup.md) step 7. |
@@ -215,7 +216,7 @@ One observation:
   "scheduledAt": "<timestamp>",   "observedAt": "<timestamp>",  "persistedAt": "<timestamp>",
   "localDate": "2026-08-20",      "timezone": "Asia/Manila",    "completeness": 3,
   "energy": {
-    "property": "energyConsumption", "unit": "kWh",
+    "property": "energyConsumption", "unit": "kWh", "unitSource": "device",
     "rawDailyTotal": "2.150",        "rawDailyTotalNumber": 2.15,
     "intervalValue": "0.050",        "intervalValueNumber": 0.05,
     "intervalSeconds": 300.0,
@@ -231,6 +232,15 @@ One observation:
   "metadataVersion": "...", "collectorVersion": "0.1.0"
 }
 ```
+
+**The unit is stored with its provenance.** `energy.unitSource` is `"device"`
+when the API reported the unit itself, and `"configured"` when it came from
+`LG_ENERGY_UNIT` because the API reported none. Both are `null` when neither
+exists. This matters more than it sounds: a counter stored as a bare `509` with
+no unit is a number nobody can interpret in five years, and the obvious guess
+(kWh) can be wrong by a factor of a thousand. Recording an operator-established
+unit makes the series readable; recording *where it came from* keeps it from
+ever being mistaken for something the device asserted.
 
 **Decimal values are stored as strings, with a `…Number` float mirror
 alongside.** Firestore has no decimal type, and a float is a binary
@@ -528,6 +538,12 @@ Each of these is a fact about LG's API or SDK, established by reading
   rather than a guess when it cannot. It will never attribute another day's value
   to the requested day. Record the real shape in
   [discovery-findings.md](discovery-findings.md) once observed.
+- **The energy counter may carry no unit at all.** The tested device
+  (`WIN_056905_WW`) returns a bare integer with no unit field anywhere in the
+  response, so the API alone cannot say whether `509` is watt-hours or
+  kilowatt-hours. Establish it by comparing a stored raw value against the LG
+  ThinQ app's own kWh figure for the same day, then set `LG_ENERGY_UNIT`. See
+  [discovery-findings.md](discovery-findings.md).
 - **Which state properties this model populates is device-specific.** The
   collector stores exactly what the device returns and invents nothing. Anything
   the profile does not expose is simply absent — see the discovery findings.

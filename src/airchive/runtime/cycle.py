@@ -47,6 +47,8 @@ class CycleSettings:
     energy_property: str
     timezone: ZoneInfo
     timezone_name: str
+    #: Only for devices whose API reports no unit; recorded with its provenance.
+    energy_unit: str | None = None
     interval_seconds: int = 300
     collector_version: str = "0.0.0"
     retry_policy: RetryPolicy = field(default_factory=RetryPolicy)
@@ -57,6 +59,7 @@ class CycleSettings:
         return cls(
             device_id=config.thinq.device_id,
             energy_property=config.thinq.energy_property,
+            energy_unit=config.thinq.energy_unit,
             timezone=config.day_timezone,
             timezone_name=config.day_timezone_name,
             interval_seconds=config.poll_interval_seconds,
@@ -345,6 +348,7 @@ async def _run_cycle_body(
         has_prior_observation=has_prior,
         final_previous_day_total=final_total,
         nominal_interval_seconds=settings.interval_seconds,
+        configured_unit=settings.energy_unit,
         metadata_version=metadata_version or (health.get("metadataVersion") if health else None),
         collector_version=settings.collector_version,
     )

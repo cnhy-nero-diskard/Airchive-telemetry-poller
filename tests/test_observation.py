@@ -308,3 +308,48 @@ def test_an_earlier_observation_is_never_rewritten_by_a_later_revision():
     # record's stored value is untouched.
     assert earlier.raw_daily_total == Decimal("3.500")
     assert later.quality.interval_status is IntervalStatus.ANOMALOUS_DECREASE
+
+
+# --- Unit provenance ---------------------------------------------------------
+
+
+def test_a_device_reported_unit_wins_and_is_marked_as_the_device_s():
+    observation = build(energy_ok(), state_ok(), configured_unit="Wh")
+    energy = observation.to_document()["energy"]
+
+    # energy_ok() reports kWh, so configuration must not override it.
+    assert energy["unit"] == "kWh"
+    assert energy["unitSource"] == "device"
+
+
+def test_a_configured_unit_fills_the_gap_when_the_device_reports_none():
+    """This device returns a bare integer with no unit anywhere in the response."""
+    silent = RequestResult.success(
+        {"result": {"dataList": [{"usedDate": "20260820", "energyUsage": 509}]}},
+        value=Decimal(509),
+        unit=None,
+    )
+    observation = build(silent, state_ok(), configured_unit="Wh")
+    energy = observation.to_document()["energy"]
+
+    assert energy["rawDailyTotal"] == "509"
+    assert energy["unit"] == "Wh"
+    # Recorded as ours, never as something the device asserted.
+    assert energy["unitSource"] == "configured"
+
+
+def test_no_unit_anywhere_stays_null_rather_than_being_guessed():
+    silent = RequestResult.success({"value": 509}, value=Decimal(509), unit=None)
+    energy = build(silent, state_ok()).to_document()["energy"]
+
+    assert energy["unit"] is None
+    assert energy["unitSource"] is None
+
+
+def test_a_failed_energy_request_carries_no_unit_at_all():
+    observation = build(failed(FailureClass.TRANSPORT), state_ok(), configured_unit="Wh")
+    energy = observation.to_document()["energy"]
+
+    assert energy["rawDailyTotal"] is None
+    assert energy["unit"] is None
+    assert energy["unitSource"] is None
