@@ -14,6 +14,7 @@ here.
 - [The quality model](#the-quality-model)
 - [Idempotency](#idempotency)
 - [Inspection commands](#inspection-commands)
+- [Local dashboard](#local-dashboard)
 - [Collector health](#collector-health)
 - [Rate limiting](#rate-limiting)
 - [Credential hygiene](#credential-hygiene)
@@ -31,8 +32,9 @@ things through LG's official ThinQ Connect API — the device's cumulative
 current-day energy counter and its full readable state — and writes one
 immutable observation to Firestore.
 
-There is no UI, no dashboard, and no analytics layer, and it depends on no other
-application. Inspection happens from a terminal.
+The deployed collector has no UI and depends on no other application. Inspection
+happens through terminal commands or an optional local-only dashboard; neither
+is part of the scheduled runtime.
 
 **Why sample a daily counter instead of reading power?** The official API exposes
 no instantaneous power or wattage property for air conditioners. The state
@@ -63,6 +65,7 @@ present and never overrides real environment variables).
 | `LG_DAY_TIMEZONE` | no | `Asia/Manila` | Timezone that defines the local day and the rollover boundary. Confirm it empirically — see [setup.md](setup.md) step 7. |
 | `LOG_LEVEL` | no | `INFO` | `DEBUG` \| `INFO` \| `WARNING` \| `ERROR` \| `CRITICAL`. |
 | `GOOGLE_APPLICATION_CREDENTIALS` | no | unset | **Local escape hatch only.** Prefer ADC. Never set in the deployed job. |
+| `AIRCHIVE_DASHBOARD_CACHE_PATH` | no | `~/.airchive/dashboard-cache.sqlite3` | Local dashboard's disposable SQLite projection cache. |
 
 Startup validation runs before any network call or write, reports **every**
 offending value at once, and never echoes a secret:
@@ -89,6 +92,7 @@ airchive latest --limit 20   # recent observations
 airchive health              # collector health record
 airchive anomalies --since 2026-08-20T00:00:00Z
 airchive compare             # stored vs a fresh live reading
+airchive dashboard           # local read-only Streamlit dashboard
 ```
 
 Everything except `poll` is read-only. `compare` in particular writes nothing to
@@ -456,6 +460,57 @@ stored observation against a fresh live reading, marking differing fields with
 The Firestore console remains usable for visual confirmation: raw payloads are
 stored as readable maps rather than JSON strings specifically so they can be
 spot-checked there.
+
+---
+
+## Local dashboard
+
+The optional Streamlit wrapper presents the same stored data visually without
+opening Firestore to browser clients:
+
+```bash
+# These are the only required application settings. Authenticate separately
+# with Application Default Credentials as described in setup.md.
+FIREBASE_PROJECT_ID=lg-ac-telemetry
+LG_DEVICE_ID=your-device-id
+LG_DAY_TIMEZONE=Asia/Manila
+
+airchive dashboard
+```
+
+The supported launcher binds Streamlit to `127.0.0.1`. It is deliberately a
+single-user local tool, not a remotely hosted service, and it never sends Google
+credentials to the browser. It needs no ThinQ token because it reads only stored
+Firestore data. Viewing, filtering, refreshing, loading raw details, and clearing
+the cache perform no Firestore write and no device control operation.
+
+The first view covers 24 hours; 7-day and 30-day ranges are available explicitly.
+The dashboard refreshes no faster than `POLL_INTERVAL_SECONDS` (five minutes by
+default), or when **Refresh now** is pressed. Charts leave null intervals as gaps,
+and totals always show usable-slot coverage so missing data is never counted as
+zero.
+
+### Cache behavior
+
+Normalized fields used by cards, charts, and tables are cached in a user-local
+SQLite file. By default it is:
+
+```text
+~/.airchive/dashboard-cache.sqlite3
+```
+
+Set `AIRCHIVE_DASHBOARD_CACHE_PATH` to override that location. Once a time range
+has been covered, revisiting it reads SQLite and performs only incremental
+Firestore checks for newly persisted, completeness-upgraded, or reconciled
+observations. Raw energy/state payloads are excluded from SQLite and fetched only
+after **Load raw payload** is pressed; that result remains short-lived in the UI
+session.
+
+If Firestore is unavailable, the last valid cached data remains visible with its
+sync age and a stale warning. If SQLite fails its integrity or schema check, the
+invalid file is moved beside the cache with a `.corrupt-<timestamp>` name and a
+new cache is created. **Cache controls → Clear local cache** requires confirmation
+and deletes only this disposable local projection; Firestore is never changed.
 
 ---
 

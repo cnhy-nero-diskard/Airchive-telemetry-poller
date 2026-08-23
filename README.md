@@ -1,6 +1,7 @@
 # Airchive
 
-Headless telemetry collector for a single LG ThinQ air conditioner.
+Telemetry collector for a single LG ThinQ air conditioner, with an optional
+local read-only dashboard.
 
 Every five minutes it reads the device's cumulative daily energy counter and its
 full readable state through LG's **official** ThinQ Connect API, and persists
@@ -11,7 +12,9 @@ so the daily counter is the only energy signal there is — which is why the
 collector samples it often and differences consecutive readings, classifying
 every observation rather than ever emitting a plausible-looking wrong number.
 
-No UI, no dashboard, no analytics layer. Inspection is done from a terminal.
+The deployed collector remains headless. Inspection is available through the
+terminal commands or a loopback-only Streamlit dashboard backed by a local
+incremental cache.
 
 ```bash
 airchive check-firestore     # prove storage connectivity
@@ -20,6 +23,7 @@ airchive validate-counter    # does the daily counter advance intraday?
 airchive poll --once         # one cycle
 airchive latest              # recent observations
 airchive health              # collector health
+airchive dashboard           # local read-only UI at 127.0.0.1
 ```
 
 ## Documentation
