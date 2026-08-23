@@ -179,6 +179,23 @@ def test_healthy_dashboard_renders_overview_chart_table_and_timezone(tmp_path):
     assert service.raw_calls == 0
 
 
+def test_dashboard_explains_statuses_and_common_actions(tmp_path):
+    service = UiService([observation(0), observation(1)])
+    app = run_app(service, config(tmp_path), instant(2))
+
+    assert not app.exception
+    text = all_visible_text(app)
+    assert "Start here" in text
+    assert "Legend & quick tips" in text
+    assert "NORMAL" in text
+    assert "UNAVAILABLE / GAP" in text
+    assert "Coverage" in text
+    assert "Refresh now" in text
+    assert "Anomalies" in text
+    assert "Raw payload" in text
+    assert "Incremental and read-only" in text
+
+
 def test_stale_failing_partial_and_empty_states_are_explicit(tmp_path):
     failing_state = SyncState(
         last_success_at=instant(0),
