@@ -107,6 +107,19 @@ reset controls collapsed until the operator asks for them.
 
 Store a cache schema version and migrate only simple compatible revisions. If integrity checks or schema initialization fail, close the connection, move the invalid database to a timestamped local backup, and create a fresh cache after explicit notice. The UI also exposes a confirmation-gated cache reset. Neither path calls Firestore deletion APIs.
 
+### D8: Theme the process at launch and step chart colors per surface
+
+Streamlit theme settings are passed as command-line options by the supported launch
+path instead of a `.streamlit/config.toml`, so appearance does not depend on the
+operator's working directory. Light and dark surfaces are defined separately rather
+than letting one palette be flipped automatically.
+
+Vega marks cannot follow the browser color scheme, so chart colors are resolved per
+render from the session theme type and drawn from a palette stepped for each surface.
+Missing intervals are drawn as dashed uprights with a neutral color instead of plotted
+values, and non-normal samples are marked by shape as well as color, so quality state
+never depends on color alone.
+
 ## Risks / Trade-offs
 
 - **[Streamlit reruns accidentally cause duplicate reads]** -> Isolate Firestore access in synchronization and explicit raw-load functions; render all other interactions from SQLite/session state and test rerun behavior with a counting fake.

@@ -15,6 +15,7 @@ from airchive.dashboard.config import (
     load_dashboard_dotenv,
 )
 from airchive.dashboard.launch import command, run
+from airchive.dashboard.theme import theme_options
 
 
 def inspection_env(tmp_path: Path) -> dict[str, str]:
@@ -79,6 +80,13 @@ def test_launch_command_is_loopback_only():
     assert "--server.address=127.0.0.1" in argv
     assert "--server.showEmailPrompt=false" in argv
     assert not any("0.0.0.0" in argument for argument in argv)
+
+
+def test_launch_command_applies_the_dashboard_theme():
+    argv = command()
+
+    for flag in theme_options():
+        assert flag in argv
 
 
 def test_launch_uses_injected_runner_without_a_shell():

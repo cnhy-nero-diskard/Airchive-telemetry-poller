@@ -50,6 +50,11 @@ The dashboard SHALL prioritize the most useful health and energy answers, use pl
 - **WHEN** an observation lacks an energy, state, health, or reconciliation field
 - **THEN** the dashboard SHALL show that value as unavailable rather than inventing a default
 
+#### Scenario: Operator scans the page for current state
+- **WHEN** the dashboard renders any collector state
+- **THEN** the page SHALL show a labelled status indicator for healthy, stale, failing, and no-data conditions
+- **AND** it SHALL group the chart, observation table, and technical diagnostics into separately labelled sections
+
 #### Scenario: Operator is unfamiliar with telemetry terminology
 - **WHEN** the operator opens the dashboard without prior knowledge of its status model
 - **THEN** the page SHALL identify a clear starting point and group related information by purpose
@@ -69,6 +74,11 @@ The dashboard SHALL let the user select a bounded time range and view interval c
 - **WHEN** the dashboard displays a consumption total for the selected range
 - **THEN** it SHALL sum only stored non-null interval values
 - **AND** it SHALL display coverage or incompleteness alongside the total whenever expected intervals are absent, unresolved, or unusable
+
+#### Scenario: Chart marks are read on either surface
+- **WHEN** the chart is rendered in a light or a dark browser theme
+- **THEN** mark colors SHALL be resolved for that surface
+- **AND** missing intervals and non-normal samples SHALL remain distinguishable by shape or pattern as well as color
 
 #### Scenario: Timezone is displayed
 - **WHEN** observation times or range boundaries are rendered

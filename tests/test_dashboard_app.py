@@ -310,3 +310,32 @@ def test_browser_visible_output_scrubs_registered_secrets(tmp_path, monkeypatch)
         assert "<redacted>" in text
     finally:
         clear_secrets()
+
+
+def test_status_badge_and_grouped_sections_stay_visible(tmp_path):
+    service = UiService([observation(0), observation(1)])
+    app = run_app(service, config(tmp_path), instant(2))
+    text = all_visible_text(app)
+
+    assert "Healthy" in text
+    assert "At a glance" in text
+    assert "Energy over time" in text
+    assert "Explore observations" in text
+    assert "Collector & device details" in text
+    assert "Local cache" in text
+
+
+def test_status_badge_reports_stale_and_failing_collectors(tmp_path):
+    stale = UiService([observation(0)])
+    assert "Stale data" in all_visible_text(run_app(stale, config(tmp_path), instant(30)))
+
+    failing = UiService(
+        [observation(0)],
+        refresh=RefreshResult(performed=True, succeeded=False, error_class="RuntimeError"),
+    )
+    assert "Needs attention" in all_visible_text(
+        run_app(failing, config(tmp_path), instant(2))
+    )
+
+    empty = UiService([])
+    assert "Waiting for data" in all_visible_text(run_app(empty, config(tmp_path), instant(2)))

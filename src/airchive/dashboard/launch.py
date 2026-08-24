@@ -8,6 +8,8 @@ from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Any
 
+from airchive.dashboard.theme import theme_options
+
 
 def command() -> list[str]:
     app_path = Path(__file__).with_name("app.py").resolve()
@@ -21,6 +23,7 @@ def command() -> list[str]:
         "--server.headless=false",
         "--server.showEmailPrompt=false",
         "--browser.gatherUsageStats=false",
+        *theme_options(),
     ]
 
 
