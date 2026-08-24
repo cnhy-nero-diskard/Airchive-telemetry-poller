@@ -50,6 +50,16 @@ The dashboard SHALL prioritize the most useful health and energy answers, use pl
 - **WHEN** an observation lacks an energy, state, health, or reconciliation field
 - **THEN** the dashboard SHALL show that value as unavailable rather than inventing a default
 
+#### Scenario: Operator checks how the device was set
+- **WHEN** the latest stored observation carries device temperatures or a fan setting
+- **THEN** the at-a-glance summary SHALL show the stored current and target temperatures in the unit the device reported and the stored fan setting in the device's own wording
+- **AND** any of those values that is absent SHALL be shown as unavailable
+
+#### Scenario: Operator scans the page for current state
+- **WHEN** the dashboard renders any collector state
+- **THEN** the page SHALL show a labelled status indicator for healthy, stale, failing, and no-data conditions
+- **AND** it SHALL group the chart, observation table, and technical diagnostics into separately labelled sections
+
 #### Scenario: Operator is unfamiliar with telemetry terminology
 - **WHEN** the operator opens the dashboard without prior knowledge of its status model
 - **THEN** the page SHALL identify a clear starting point and group related information by purpose
@@ -69,6 +79,22 @@ The dashboard SHALL let the user select a bounded time range and view interval c
 - **WHEN** the dashboard displays a consumption total for the selected range
 - **THEN** it SHALL sum only stored non-null interval values
 - **AND** it SHALL display coverage or incompleteness alongside the total whenever expected intervals are absent, unresolved, or unusable
+
+#### Scenario: User changes the chart interval
+- **WHEN** the user selects an aggregation interval at or above the collector cadence
+- **THEN** the chart SHALL sum only stored non-null intervals inside each clock-aligned slot
+- **AND** a slot with no stored value SHALL remain visibly empty rather than being drawn as zero
+- **AND** a slot holding fewer samples than its width implies SHALL be marked as partially covered
+
+#### Scenario: User opens the device-style view
+- **WHEN** the user selects a day, week, or month period in the device-style view
+- **THEN** the dashboard SHALL show average power over the latest stored interval, measured usage for the period, and bucketed usage over the elapsed part of that period
+- **AND** period navigation MUST NOT move beyond the current period
+
+#### Scenario: Chart marks are read on either surface
+- **WHEN** the chart is rendered in a light or a dark browser theme
+- **THEN** mark colors SHALL be resolved for that surface
+- **AND** missing intervals and non-normal samples SHALL remain distinguishable by shape or pattern as well as color
 
 #### Scenario: Timezone is displayed
 - **WHEN** observation times or range boundaries are rendered

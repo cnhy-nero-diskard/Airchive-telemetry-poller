@@ -49,3 +49,17 @@
 
 - [x] 7.1 Rework the dashboard into a plain-language hierarchy with a clear starting point, compact primary controls, friendly table labels, and progressive disclosure for collector, device, normalized, raw, and cache details; verify existing interaction and safety tests remain green
 - [x] 7.2 Add a visible, non-color-only legend plus contextual hints for status, coverage, time range, refresh, anomaly filtering, and raw loading; verify Streamlit app tests assert the guidance remains browser-visible
+
+## 8. Visual presentation
+
+- [x] 8.1 Apply a launch-time Streamlit theme for both light and dark surfaces, a titled header with a collector status badge, a single control bar, and equal-height summary cards; verify the theme is applied through the supported loopback launch command rather than a working-directory config file
+- [x] 8.2 Group the chart, observation table, and diagnostics into labelled tabs and verify the status badge and every grouped section stay browser-visible
+- [x] 8.3 Replace the built-in line chart with a layered chart that keeps missing intervals as dashed gap markers, marks non-normal samples by both shape and color, adds a hover crosshair, and renders times in the configured timezone; verify the chart palette is stepped per surface and clears colorblind and normal-vision separation floors
+
+- [x] 8.4 Show the stored device temperatures and fan setting beside the health, energy, and quality cards in a same-size card grid; verify present values render with the device's own unit and wording and absent values render as unavailable
+
+## 9. Selectable intervals and device-style view
+
+- [x] 9.1 Aggregate stored intervals into clock-aligned buckets selectable from the collector cadence up to one day; verify buckets align to local midnight, sum only stored values, and report missing and partially covered slots separately
+- [x] 9.2 Add an interval control to the chart that renders raw samples as a line and aggregated slots as bars, keeping empty slots as markers rather than zero-height bars; verify the control offers every width at or above the cadence and the chart renders for each
+- [x] 9.3 Add a device-app style view with day, week, and month periods, period navigation, average power over the latest stored interval, measured usage for the period, and a bucketed bar chart; verify power and energy readouts are scaled to kW and kWh and that navigation cannot move past the current period

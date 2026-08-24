@@ -107,6 +107,35 @@ reset controls collapsed until the operator asks for them.
 
 Store a cache schema version and migrate only simple compatible revisions. If integrity checks or schema initialization fail, close the connection, move the invalid database to a timestamped local backup, and create a fresh cache after explicit notice. The UI also exposes a confirmation-gated cache reset. Neither path calls Firestore deletion APIs.
 
+### D8: Theme the process at launch and step chart colors per surface
+
+Streamlit theme settings are passed as command-line options by the supported launch
+path instead of a `.streamlit/config.toml`, so appearance does not depend on the
+operator's working directory. Light and dark surfaces are defined separately rather
+than letting one palette be flipped automatically.
+
+Vega marks cannot follow the browser color scheme, so chart colors are resolved per
+render from the session theme type and drawn from a palette stepped for each surface.
+Missing intervals are drawn as dashed uprights with a neutral color instead of plotted
+values, and non-normal samples are marked by shape as well as color, so quality state
+never depends on color alone.
+
+### D9: Aggregate in the dashboard, never in Firestore
+
+Interval aggregation runs in the dashboard process over the cached projection. Buckets are
+anchored to local midnight so hourly and multi-hour slots align with the wall clock, widths
+start at the collector cadence, and a bucket total sums only stored non-null intervals.
+Empty buckets are kept in the series as missing rather than dropped, so an outage is drawn
+as a marker instead of a zero-height bar, and a bucket with fewer stored samples than its
+cadence implies is reported as partially covered.
+
+The device-style view reuses the same buckets with hourly slots for a day and daily slots
+for a week or month, and reads its own window through the existing cache path. Its power
+readout is the average across the latest stored interval - interval energy divided by
+interval duration - and is labelled as such rather than presented as an instantaneous
+reading. A year period is intentionally absent: a year of five-minute samples is roughly a
+hundred thousand document reads with no server-side aggregate to lean on.
+
 ## Risks / Trade-offs
 
 - **[Streamlit reruns accidentally cause duplicate reads]** -> Isolate Firestore access in synchronization and explicit raw-load functions; render all other interactions from SQLite/session state and test rerun behavior with a counting fake.
