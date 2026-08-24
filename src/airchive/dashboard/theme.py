@@ -22,6 +22,7 @@ class ChartPalette:
     attention: str
     gap: str
     guide: str
+    surface: str
 
 
 # Each hue is stepped for the surface it is drawn on. Adjacent marks clear the
@@ -34,12 +35,14 @@ _PALETTES = {
         attention="#eb6834",
         gap="#78776f",
         guide="#8a8a85",
+        surface="#fcfcfb",
     ),
     DARK: ChartPalette(
         series="#3987e5",
         attention="#d95926",
         gap="#8f8e86",
         guide="#9b9b94",
+        surface="#141413",
     ),
 }
 

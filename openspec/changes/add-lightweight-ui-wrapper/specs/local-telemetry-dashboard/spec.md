@@ -75,6 +75,17 @@ The dashboard SHALL let the user select a bounded time range and view interval c
 - **THEN** it SHALL sum only stored non-null interval values
 - **AND** it SHALL display coverage or incompleteness alongside the total whenever expected intervals are absent, unresolved, or unusable
 
+#### Scenario: User changes the chart interval
+- **WHEN** the user selects an aggregation interval at or above the collector cadence
+- **THEN** the chart SHALL sum only stored non-null intervals inside each clock-aligned slot
+- **AND** a slot with no stored value SHALL remain visibly empty rather than being drawn as zero
+- **AND** a slot holding fewer samples than its width implies SHALL be marked as partially covered
+
+#### Scenario: User opens the device-style view
+- **WHEN** the user selects a day, week, or month period in the device-style view
+- **THEN** the dashboard SHALL show average power over the latest stored interval, measured usage for the period, and bucketed usage over the elapsed part of that period
+- **AND** period navigation MUST NOT move beyond the current period
+
 #### Scenario: Chart marks are read on either surface
 - **WHEN** the chart is rendered in a light or a dark browser theme
 - **THEN** mark colors SHALL be resolved for that surface

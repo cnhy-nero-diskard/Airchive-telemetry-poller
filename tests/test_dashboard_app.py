@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -24,7 +24,8 @@ def dashboard_script(service, config, now):
 
 
 def instant(minute: int) -> datetime:
-    return datetime(2026, 8, 24, 1, minute, tzinfo=UTC)
+    """Minutes after 01:00 UTC, so spans longer than an hour stay expressible."""
+    return datetime(2026, 8, 24, 1, 0, tzinfo=UTC) + timedelta(minutes=minute)
 
 
 def observation(
@@ -282,7 +283,10 @@ def test_manual_refresh_and_confirmation_gated_cache_reset(tmp_path):
 
     refresh = next(button for button in app.button if button.label == "Refresh now")
     refresh.click().run()
-    assert service.load_calls[-1][3] is True
+    # The selected window forces one incremental sync; other views on the page
+    # read the cache the sync just updated instead of syncing again.
+    assert [call for call in service.load_calls if call[3] is True]
+    assert len([call for call in service.load_calls if call[3] is True]) == 1
 
     reset = next(button for button in app.button if button.label == "Clear local cache")
     assert reset.disabled
@@ -339,3 +343,68 @@ def test_status_badge_reports_stale_and_failing_collectors(tmp_path):
 
     empty = UiService([])
     assert "Waiting for data" in all_visible_text(run_app(empty, config(tmp_path), instant(2)))
+
+
+def bucketed_service(minutes: int = 150) -> UiService:
+    return UiService([observation(minute) for minute in range(minutes)])
+
+
+def test_chart_granularity_switches_to_bucketed_bars(tmp_path):
+    service = bucketed_service()
+    app = run_app(service, config(tmp_path), instant(151))
+    granularity = next(
+        control for control in app.segmented_control if control.label == "Interval"
+    )
+
+    assert "5 min samples" in granularity.options
+    assert "1 hour" in granularity.options
+    assert "6 hours" in granularity.options
+
+    app = granularity.set_value("1 hour").run()
+    assert not app.exception
+    assert app.get("vega_lite_chart")
+
+    app = next(
+        control for control in app.segmented_control if control.label == "Interval"
+    ).set_value("30 minutes").run()
+    assert not app.exception
+    assert app.get("vega_lite_chart")
+
+
+def test_device_view_reports_power_usage_and_navigates_periods(tmp_path):
+    service = bucketed_service()
+    app = run_app(service, config(tmp_path), instant(151))
+    text = all_visible_text(app)
+
+    assert "Device view" in text
+    assert "Power over the latest stored interval" in text
+    assert "Measured usage this day" in text
+    assert "Highest slot" in text
+    assert "kW" in text
+
+    period = next(
+        control for control in app.segmented_control if control.label == "Period"
+    )
+    assert list(period.options) == ["Day", "Week", "Month"]
+
+    earlier = next(
+        button for button in app.button if button.label == "Earlier period"
+    )
+    later = next(button for button in app.button if button.label == "Later period")
+    assert later.disabled
+
+    app = earlier.click().run()
+    assert not app.exception
+    assert "2026-08-23" in str(app.session_state["device_day"])
+    assert not next(
+        button for button in app.button if button.label == "Later period"
+    ).disabled
+
+
+def test_device_view_scales_watt_hours_to_kilowatt_hours(tmp_path):
+    service = UiService([observation(minute, interval=500.0) for minute in range(12)])
+    app = run_app(service, config(tmp_path), instant(13))
+    values = [str(element.value) for element in app.metric]
+
+    assert any("kWh" in value for value in values)
+    assert any("kW" in value and "kWh" not in value for value in values)

@@ -3,14 +3,15 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, time, timedelta
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 import streamlit as st
 
 from airchive.config import ConfigError
 from airchive.dashboard.cache import DashboardCache
-from airchive.dashboard.charts import energy_chart
+from airchive.dashboard.charts import energy_bar_chart, energy_chart
 from airchive.dashboard.config import (
     DashboardConfig,
     load_dashboard_config,
@@ -19,6 +20,9 @@ from airchive.dashboard.config import (
 from airchive.dashboard.models import ObservationProjection
 from airchive.dashboard.presentation import (
     Overview,
+    bucket_options,
+    bucket_rows,
+    bucket_series,
     build_overview,
     chart_rows,
     is_anomalous,
@@ -340,28 +344,279 @@ def _render_energy_tab(
             icon=":material/warning:",
         )
 
-    rows = chart_rows(observations, config.timezone)
-    if not rows:
+    options = bucket_options(config.refresh_seconds)
+    raw_label = next(iter(options))
+    granularity = st.segmented_control(
+        "Interval",
+        tuple(options),
+        default=raw_label,
+        key="chart_granularity",
+        help=(
+            "Aggregation width. Coarser intervals sum the stored samples inside each "
+            "slot; slots with no stored value stay empty."
+        ),
+    )
+    granularity = granularity or raw_label
+
+    if not observations:
         st.info("No observations are available in this range.", icon=":material/info:")
         return
 
+    palette = _active_palette()
+    if granularity == raw_label:
+        rows = chart_rows(observations, config.timezone)
+        chart = energy_chart(
+            rows,
+            timezone_name=config.timezone_name,
+            unit=unit,
+            palette=palette,
+        )
+        detail = [
+            row for row in rows if row["intervalStatus"] != "NORMAL" or row["anomalous"]
+        ]
+        detail_label = "Samples behind the chart's gaps and non-normal markers"
+    else:
+        buckets = bucket_series(
+            observations,
+            timezone=config.timezone,
+            bucket_seconds=options[granularity],
+            since=since,
+            until=until,
+            cadence_seconds=config.refresh_seconds,
+        )
+        rows = bucket_rows(buckets)
+        chart = energy_bar_chart(
+            rows,
+            timezone_name=config.timezone_name,
+            unit=unit,
+            palette=palette,
+        )
+        detail = [row for row in rows if row["state"] != "Complete"]
+        detail_label = f"{granularity} slots with missing or partial coverage"
+
+    with st.container(border=True):
+        st.altair_chart(chart, width="stretch")
+    if detail:
+        with st.expander(f"{detail_label} ({len(detail)})"):
+            st.dataframe(detail, hide_index=True, width="stretch")
+
+
+def _energy_display(value: float | None, unit: str | None) -> tuple[float | None, str | None]:
+    """Scale watt-hours to kilowatt-hours for the device-style readouts."""
+    if value is None:
+        return None, unit
+    if unit == "Wh":
+        return value / 1000, "kWh"
+    return value, unit
+
+
+def _format_energy(value: float | None, unit: str | None) -> str:
+    """Format a scaled energy value with enough precision for small totals."""
+    if value is None:
+        return "Unavailable"
+    digits = 2 if abs(value) >= 1 else 3
+    rendered = f"{value:,.{digits}f}"
+    return f"{rendered} {unit}" if unit else rendered
+
+
+def _power_kw(latest: ObservationProjection | None) -> float | None:
+    """Average power across the latest stored interval, in kilowatts."""
+    if latest is None or latest.interval_value_number is None:
+        return None
+    seconds = latest.interval_seconds
+    if not seconds:
+        return None
+    per_second = latest.interval_value_number / seconds
+    if latest.unit == "Wh":
+        return per_second * 3.6
+    if latest.unit == "kWh":
+        return per_second * 3600
+    return None
+
+
+def _period_window(
+    period: str,
+    day: date,
+    timezone: ZoneInfo,
+) -> tuple[datetime, datetime, int, str]:
+    """Return the local window, bucket width, and axis format for a period."""
+    start_of_day = datetime.combine(day, time.min, tzinfo=timezone)
+    if period == "Week":
+        start = start_of_day - timedelta(days=6)
+        return start, start_of_day + timedelta(days=1), 86400, "%a %d"
+    if period == "Month":
+        start = start_of_day.replace(day=1)
+        end_month = (start + timedelta(days=31)).replace(day=1)
+        return start, end_month, 86400, "%d"
+    return start_of_day, start_of_day + timedelta(days=1), 3600, "%H:%M"
+
+
+def _shift_period(period: str, day: date, direction: int) -> date:
+    if period == "Week":
+        return day + timedelta(days=7 * direction)
+    if period == "Month":
+        anchor = day.replace(day=1)
+        moved = anchor - timedelta(days=1) if direction < 0 else anchor + timedelta(days=31)
+        return moved.replace(day=1)
+    return day + timedelta(days=direction)
+
+
+def _render_device_view_tab(
+    service: DashboardService,
+    config: DashboardConfig,
+    *,
+    now: datetime,
+) -> None:
+    st.subheader("Device view")
+    st.caption(
+        "A device-app style summary built only from stored telemetry. Totals come "
+        "from stored intervals, so slots without a stored value stay empty."
+    )
+    today = now.astimezone(config.timezone).date()
+    period = (
+        st.segmented_control(
+            "Period",
+            ("Day", "Week", "Month"),
+            default="Day",
+            key="device_period",
+            label_visibility="collapsed",
+        )
+        or "Day"
+    )
+    if "device_day" not in st.session_state:
+        st.session_state["device_day"] = today
+
+    back, label_column, forward = st.columns([1, 6, 1], vertical_alignment="center")
+    with back:
+        if st.button("Earlier period", width="stretch", icon=":material/chevron_left:"):
+            st.session_state["device_day"] = _shift_period(
+                period, st.session_state["device_day"], -1
+            )
+    with forward:
+        at_latest = st.session_state["device_day"] >= today
+        if st.button(
+            "Later period",
+            width="stretch",
+            icon=":material/chevron_right:",
+            disabled=at_latest,
+        ):
+            st.session_state["device_day"] = min(
+                today, _shift_period(period, st.session_state["device_day"], 1)
+            )
+    day = min(st.session_state["device_day"], today)
+    since_local, until_local, bucket_seconds, axis_format = _period_window(
+        period, day, config.timezone
+    )
+    with label_column:
+        st.markdown(
+            f"<div style='text-align:center;font-size:1.15rem;font-weight:600'>"
+            f"{_period_label(period, since_local, until_local)}</div>",
+            unsafe_allow_html=True,
+        )
+
+    until_local = min(until_local, now.astimezone(config.timezone))
+    observations, _ = service.load_range(
+        since_local.astimezone(UTC), until_local.astimezone(UTC), now=now
+    )
+    latest = observations[-1] if observations else None
+    unit = latest.unit if latest else None
+
+    power = _power_kw(latest)
+    measured = sum(
+        item.interval_value_number
+        for item in observations
+        if item.interval_value_number is not None
+    )
+    total, total_unit = _energy_display(measured, unit)
+    counter, counter_unit = _energy_display(
+        latest.raw_daily_total_number if latest else None, unit
+    )
+
+    with st.container(border=True):
+        power_row, total_row = st.columns(2, vertical_alignment="center")
+        with power_row:
+            observed = (
+                latest.observed_at.astimezone(config.timezone).strftime("%I:%M %p").lstrip("0")
+                if latest and latest.observed_at
+                else "Unavailable"
+            )
+            st.metric(
+                f"Power over the latest stored interval · {observed}",
+                _format_energy(power, "kW"),
+                help=(
+                    "Average power across the newest stored interval in this period: "
+                    "interval energy divided by interval duration."
+                ),
+            )
+        with total_row:
+            st.metric(
+                f"Measured usage this {period.lower()}",
+                _format_energy(total, total_unit),
+                help="Sum of stored non-null interval values inside this period.",
+            )
+        if period == "Day" and counter is not None:
+            st.caption(
+                "Device daily counter at the latest sample: "
+                + _format_energy(counter, counter_unit)
+            )
+
+    if not observations:
+        st.info(
+            "No stored observations in this period.",
+            icon=":material/info:",
+        )
+        return
+
+    buckets = bucket_series(
+        observations,
+        timezone=config.timezone,
+        bucket_seconds=bucket_seconds,
+        since=since_local,
+        until=until_local,
+        cadence_seconds=config.refresh_seconds,
+    )
+    rows = bucket_rows(buckets)
+    scaled = [
+        {**row, "total": _energy_display(row["total"], unit)[0]} for row in rows
+    ]
     with st.container(border=True):
         st.altair_chart(
-            energy_chart(
-                rows,
+            energy_bar_chart(
+                scaled,
                 timezone_name=config.timezone_name,
-                unit=unit,
+                unit=total_unit,
                 palette=_active_palette(),
+                axis_format=axis_format,
+                time_format="%b %d %H:%M" if bucket_seconds < 86400 else "%b %d",
             ),
             width="stretch",
         )
-    non_normal = [
-        row for row in rows if row["intervalStatus"] != "NORMAL" or row["anomalous"]
-    ]
-    if non_normal:
-        label = "Samples behind the chart's gaps and non-normal markers"
-        with st.expander(f"{label} ({len(non_normal)})"):
-            st.dataframe(non_normal, hide_index=True, width="stretch")
+    peak = max(
+        (bucket for bucket in buckets if bucket.total is not None),
+        key=lambda bucket: bucket.total,
+        default=None,
+    )
+    if peak is not None:
+        peak_value, peak_unit = _energy_display(peak.total, unit)
+        window = (
+            f"{peak.start.strftime('%I:%M %p').lstrip('0')}–"
+            f"{peak.end.strftime('%I:%M %p').lstrip('0')}"
+            if bucket_seconds < 86400
+            else peak.start.strftime("%a %b %d")
+        )
+        st.caption(f"Highest slot: {window} · {_format_energy(peak_value, peak_unit)}")
+    st.caption(
+        "Bars cover only elapsed time in this period. A slot with no stored value is "
+        "drawn as a dashed marker instead of a zero-height bar."
+    )
+
+
+def _period_label(period: str, since: datetime, until: datetime) -> str:
+    if period == "Day":
+        return since.strftime("%a, %b %d, %Y")
+    if period == "Week":
+        return f"{since.strftime('%b %d')} – {(until - timedelta(days=1)).strftime('%b %d, %Y')}"
+    return since.strftime("%B %Y")
 
 
 def _render_observations_tab(
@@ -612,11 +867,13 @@ def render_dashboard(
     _render_banners(overview, refresh, latest, observations)
     _render_glance(overview, latest, observations)
 
-    energy_tab, table_tab, diagnostics_tab = st.tabs(
-        ["Energy over time", "Observations", "Diagnostics & help"]
+    energy_tab, device_tab, table_tab, diagnostics_tab = st.tabs(
+        ["Energy over time", "Device view", "Observations", "Diagnostics & help"]
     )
     with energy_tab:
         _render_energy_tab(observations, config, latest, since=since, until=current)
+    with device_tab:
+        _render_device_view_tab(service, config, now=current)
     with table_tab:
         _render_observations_tab(observations, service, config, now=current)
     with diagnostics_tab:

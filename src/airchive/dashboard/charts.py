@@ -117,3 +117,87 @@ def energy_chart(
         .properties(height=CHART_HEIGHT)
         .configure_view(strokeWidth=0)
     )
+
+
+COMPLETE_STATE = "Complete"
+PARTIAL_STATE = "Partial coverage"
+MISSING_STATE = "No stored value"
+
+
+def bucket_frame(rows: list[dict[str, Any]]) -> pd.DataFrame:
+    """Build the bucket plotting frame in the configured wall clock."""
+    return pd.DataFrame(
+        [
+            {
+                "start": row["start"].replace(tzinfo=None),
+                "end": row["end"].replace(tzinfo=None),
+                "total": row["total"],
+                "state": row["state"],
+                "coverage": f"{row['usableSamples']}/{row['expectedSamples']} samples",
+            }
+            for row in rows
+        ]
+    )
+
+
+def energy_bar_chart(
+    rows: list[dict[str, Any]],
+    *,
+    timezone_name: str,
+    unit: str | None,
+    palette: ChartPalette,
+    axis_format: str = "%H:%M",
+    time_format: str = "%b %d %H:%M",
+) -> alt.LayerChart:
+    """Draw bucketed usage as bars, leaving buckets without a value empty."""
+    frame = bucket_frame(rows)
+    base = alt.Chart(frame)
+    x = alt.X(
+        "start:T",
+        title=f"Observed at ({timezone_name})",
+        axis=alt.Axis(grid=False, labelAngle=0, tickCount=8, format=axis_format),
+    )
+    y = alt.Y(
+        "total:Q",
+        title=unit or "Stored interval total",
+        axis=alt.Axis(grid=True, gridDash=[2, 3]),
+    )
+    color = alt.Color(
+        "state:N",
+        scale=alt.Scale(
+            domain=[COMPLETE_STATE, PARTIAL_STATE, MISSING_STATE],
+            range=[palette.series, palette.attention, palette.gap],
+        ),
+        legend=alt.Legend(title=None, orient="top", direction="horizontal", offset=6),
+    )
+    tooltip = [
+        alt.Tooltip("start:T", title="From", format=time_format),
+        alt.Tooltip("end:T", title="To", format=time_format),
+        alt.Tooltip("total:Q", title=f"Total ({unit})" if unit else "Total"),
+        alt.Tooltip("coverage:N", title="Coverage"),
+        alt.Tooltip("state:N", title="State"),
+    ]
+
+    # Each bar spans its own slot, so x2 carries the slot end and y2 pins the
+    # bar to the zero baseline (a ranged bar has no implicit baseline). The 1px
+    # surface-colored stroke draws the hairline separator between neighbors.
+    bars = (
+        base.transform_filter(alt.datum.state != MISSING_STATE)
+        .mark_bar(stroke=palette.surface, strokeWidth=2)
+        .encode(
+            x=x,
+            x2=alt.X2("end:T"),
+            y=y,
+            y2=alt.datum(0),
+            color=color,
+            tooltip=tooltip,
+        )
+    )
+    gaps = (
+        base.transform_filter(alt.datum.state == MISSING_STATE)
+        .mark_rule(strokeWidth=1.5, strokeDash=[3, 3], opacity=0.7)
+        .encode(x=x, color=color, tooltip=tooltip)
+    )
+    return (
+        alt.layer(gaps, bars).properties(height=CHART_HEIGHT).configure_view(strokeWidth=0)
+    )
