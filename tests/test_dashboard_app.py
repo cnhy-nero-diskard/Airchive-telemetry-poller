@@ -69,7 +69,12 @@ def observation(
             "state": {
                 "operation": {"airConOperationMode": "POWER_ON"},
                 "airConJobMode": {"currentJobMode": "COOL"},
-                "temperature": {"targetTemperature": 25, "unit": "C"},
+                "temperature": {
+                    "currentTemperature": 27,
+                    "targetTemperature": 25,
+                    "unit": "C",
+                },
+                "airFlow": {"windStrength": "MID"},
             },
         },
         storage_path=f"devices/device-1/telemetry/sample-{minute}",
@@ -408,3 +413,33 @@ def test_device_view_scales_watt_hours_to_kilowatt_hours(tmp_path):
 
     assert any("kWh" in value for value in values)
     assert any("kW" in value and "kWh" not in value for value in values)
+
+
+def test_glance_includes_stored_temperatures_and_wind_strength(tmp_path):
+    service = UiService([observation(0), observation(1)])
+    app = run_app(service, config(tmp_path), instant(2))
+    labels = {str(element.label): str(element.value) for element in app.metric}
+
+    assert labels["Room temperature"] == "27 °C"
+    assert labels["Wind strength"] == "MID"
+    targets = [str(getattr(element, "delta", "")) for element in app.metric]
+    assert any("Target 25 °C" in value for value in targets)
+
+
+def test_glance_reports_missing_device_state_as_unavailable(tmp_path):
+    bare = ObservationProjection.from_document(
+        {
+            "sampleId": "20260824T010000Z",
+            "observedAt": instant(0),
+            "energy": {"intervalValueNumber": 1.0, "unit": "Wh", "intervalSeconds": 300},
+            "quality": {"intervalStatus": "NORMAL", "flags": []},
+            "source": {"energy": {"ok": True}, "state": {"ok": False}},
+            "state": {},
+        },
+        storage_path="devices/device-1/telemetry/bare",
+    )
+    app = run_app(UiService([bare]), config(tmp_path), instant(1))
+    labels = {str(element.label): str(element.value) for element in app.metric}
+
+    assert labels["Room temperature"] == "Unavailable"
+    assert labels["Wind strength"] == "Unavailable"

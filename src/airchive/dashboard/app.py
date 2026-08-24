@@ -248,17 +248,43 @@ def _render_banners(
         )
 
 
+def _principal(latest: ObservationProjection | None, key: str) -> object | None:
+    """Read one principal state field, keeping the device's own vocabulary."""
+    if latest is None:
+        return None
+    value = latest.principal_state.get(key)
+    return None if value in (None, "") else value
+
+
+def _format_temperature(value: object | None, unit: object | None) -> str:
+    if value is None:
+        return "Unavailable"
+    number = f"{value:g}" if isinstance(value, int | float) else str(value)
+    if unit in ("C", "F"):
+        return f"{number} °{unit}"
+    return f"{number} {unit}" if unit else number
+
+
 def _render_glance(
     overview: Overview,
     latest: ObservationProjection | None,
     observations: list[ObservationProjection],
 ) -> None:
     st.subheader("At a glance")
-    st.caption("Start here: current health, latest usage, and data quality.")
+    st.caption(
+        "Start here: current health, latest usage, data quality, and how the device "
+        "was set."
+    )
 
     unit = latest.unit if latest else None
     status = latest.interval_status if latest and latest.interval_status else "Unavailable"
-    with st.container(horizontal=True):
+    temperature_unit = _principal(latest, "unit")
+    target = _principal(latest, "targetTemperature")
+
+    # Two rows of three keep every card the same size; a single wrapping row
+    # would stretch the leftover card across the full width.
+    age_card, energy_card, counter_card = st.columns(3)
+    with age_card:
         st.metric(
             "Latest sample age",
             _format_age(overview.latest_age_seconds),
@@ -267,6 +293,7 @@ def _render_glance(
             icon=":material/schedule:",
             help="How long ago the newest stored observation was collected.",
         )
+    with energy_card:
         st.metric(
             "Latest interval use",
             _format_number(latest.interval_value_number if latest else None, unit),
@@ -277,6 +304,7 @@ def _render_glance(
             chart_type="area",
             help="Energy used between the two most recent usable samples.",
         )
+    with counter_card:
         st.metric(
             "Today's device counter",
             _format_number(latest.raw_daily_total_number if latest else None, unit),
@@ -285,6 +313,9 @@ def _render_glance(
             icon=":material/speed:",
             help="The raw cumulative daily counter reported by the device.",
         )
+
+    quality_card, temperature_card, wind_card = st.columns(3)
+    with quality_card:
         st.metric(
             "Data quality",
             status,
@@ -292,6 +323,34 @@ def _render_glance(
             height=KPI_CARD_HEIGHT,
             icon=":material/verified:",
             help="NORMAL is usable. Other statuses are explained in the legend below.",
+        )
+    with temperature_card:
+        st.metric(
+            "Room temperature",
+            _format_temperature(_principal(latest, "currentTemperature"), temperature_unit),
+            delta=(
+                f"Target {_format_temperature(target, temperature_unit)}"
+                if target is not None
+                else None
+            ),
+            delta_color="off",
+            delta_arrow="off",
+            border=True,
+            height=KPI_CARD_HEIGHT,
+            icon=":material/thermostat:",
+            help=(
+                "Stored device temperatures at the latest sample, in the unit the "
+                "device reported."
+            ),
+        )
+    with wind_card:
+        st.metric(
+            "Wind strength",
+            str(_principal(latest, "windStrength") or "Unavailable"),
+            border=True,
+            height=KPI_CARD_HEIGHT,
+            icon=":material/air:",
+            help="Fan setting stored with the latest sample, in the device's own wording.",
         )
 
 

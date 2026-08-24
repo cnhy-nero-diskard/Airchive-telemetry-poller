@@ -56,6 +56,8 @@
 - [x] 8.2 Group the chart, observation table, and diagnostics into labelled tabs and verify the status badge and every grouped section stay browser-visible
 - [x] 8.3 Replace the built-in line chart with a layered chart that keeps missing intervals as dashed gap markers, marks non-normal samples by both shape and color, adds a hover crosshair, and renders times in the configured timezone; verify the chart palette is stepped per surface and clears colorblind and normal-vision separation floors
 
+- [x] 8.4 Show the stored device temperatures and fan setting beside the health, energy, and quality cards in a same-size card grid; verify present values render with the device's own unit and wording and absent values render as unavailable
+
 ## 9. Selectable intervals and device-style view
 
 - [x] 9.1 Aggregate stored intervals into clock-aligned buckets selectable from the collector cadence up to one day; verify buckets align to local midnight, sum only stored values, and report missing and partially covered slots separately

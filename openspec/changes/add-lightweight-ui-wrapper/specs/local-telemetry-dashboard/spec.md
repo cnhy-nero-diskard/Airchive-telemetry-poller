@@ -50,6 +50,11 @@ The dashboard SHALL prioritize the most useful health and energy answers, use pl
 - **WHEN** an observation lacks an energy, state, health, or reconciliation field
 - **THEN** the dashboard SHALL show that value as unavailable rather than inventing a default
 
+#### Scenario: Operator checks how the device was set
+- **WHEN** the latest stored observation carries device temperatures or a fan setting
+- **THEN** the at-a-glance summary SHALL show the stored current and target temperatures in the unit the device reported and the stored fan setting in the device's own wording
+- **AND** any of those values that is absent SHALL be shown as unavailable
+
 #### Scenario: Operator scans the page for current state
 - **WHEN** the dashboard renders any collector state
 - **THEN** the page SHALL show a labelled status indicator for healthy, stale, failing, and no-data conditions
