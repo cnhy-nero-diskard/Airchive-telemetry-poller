@@ -1,5 +1,7 @@
 # Airchive
 
+IMPORTANT NOTE: Since polling data seems to be healthy, there'll be no progress with this poller until the first month or so. Another repository will be made for the dedicated app
+
 Telemetry collector for a single LG ThinQ air conditioner, with an optional
 local read-only dashboard.
 
