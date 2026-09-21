@@ -64,7 +64,7 @@ present and never overrides real environment variables).
 | `POLL_INTERVAL_SECONDS` | no | `300` | Sampling cadence. Interval classification always uses *actual* observation times, never this. |
 | `LG_DAY_TIMEZONE` | no | `Asia/Manila` | Timezone that defines the local day and the rollover boundary. Confirm it empirically — see [setup.md](setup.md) step 7. |
 | `LOG_LEVEL` | no | `INFO` | `DEBUG` \| `INFO` \| `WARNING` \| `ERROR` \| `CRITICAL`. |
-| `GOOGLE_APPLICATION_CREDENTIALS` | no | unset | **Local escape hatch only.** Prefer ADC. Never set in the deployed job. |
+| `GOOGLE_APPLICATION_CREDENTIALS` | no | unset | **Local escape hatch only.** Prefer ADC. Never set in the deployed service. |
 | `AIRCHIVE_DASHBOARD_CACHE_PATH` | no | `~/.airchive/dashboard-cache.sqlite3` | Local dashboard's disposable SQLite projection cache. |
 
 Startup validation runs before any network call or write, reports **every**
@@ -86,8 +86,9 @@ airchive --help              # every subcommand
 airchive check-firestore     # storage round trip (Gate A)
 airchive discover            # devices, profiles, energy property, unit, precision
 airchive validate-counter    # does the daily counter advance intraday? (Gate B)
-airchive poll --once         # one cycle, then exit  <- the deployed shape
+airchive poll --once         # one cycle, then exit
 airchive poll                # a cycle per interval until interrupted
+airchive serve               # request-triggered service on 0.0.0.0:$PORT
 airchive latest --limit 20   # recent observations
 airchive health              # collector health record
 airchive anomalies --since 2026-08-20T00:00:00Z
@@ -95,120 +96,158 @@ airchive compare             # stored vs a fresh live reading
 airchive dashboard           # local read-only Streamlit dashboard
 ```
 
-Everything except `poll` is read-only. `compare` in particular writes nothing to
-the telemetry series. No command ever issues a device **control** command.
+Everything except `poll` and an accepted `serve` request is read-only. `compare`
+in particular writes nothing to the telemetry series. No command ever issues a
+device **control** command.
 
-`poll --once` is the shape the deployment uses: one cycle per invocation, all
-state reconstructed from Firestore. `poll` without `--once` runs a cycle per
-interval and stops cleanly on SIGINT/SIGTERM, finishing or abandoning the cycle
-in flight so no partial observation is left behind.
+`poll --once` is the one-cycle implementation used by both deployment shapes:
+all state is reconstructed from Firestore. `serve` accepts only `POST /poll` and
+calls that same one-cycle path exactly once. It binds to `0.0.0.0:$PORT`, with a
+default port of `8080`; Cloud Run IAM rejects unauthenticated requests before
+the handler is reached. `poll` without `--once` runs a cycle per interval and
+stops cleanly on SIGINT/SIGTERM, finishing or abandoning the cycle in flight so
+no partial observation is left behind.
 
 ---
 
 ## Deployment
 
-### Why a scheduled job rather than a long-running service
+### Why a request-billed service rather than a long-running process
 
-| | **Cloud Run Job + Scheduler** | Always-on service | Local process |
+| | **Cloud Run Service + Scheduler** | Always-on service | Local process |
 |---|---|---|---|
-| Cost at 5 min | within free tier | pays 24/7 to idle | free, plus a machine that must never sleep |
+| Billing granularity | request duration, no one-minute floor; fractional CPU | pays 24/7 to idle | free, plus a machine that must never sleep |
 | Restart behavior | every run is a cold start; no recovery path to get wrong | needs supervision and liveness | fails silently when the machine reboots |
 | Credentials | attached service account, no key file | same | tempts a long-lived key on disk |
 | State | already in Firestore, so statelessness costs nothing | in-memory state becomes a liability | same |
 | Failure blast radius | one invocation | whole process | whole process |
-| Observability | one log stream per execution | needs its own | local only |
+| Observability | one request log stream; health and observations persist | needs its own | local only |
 | Rate limits | same 2 calls per slot either way | same | same |
 
-**Chosen: Cloud Run Job + Cloud Scheduler.** Restart recovery is required
-regardless — every cycle reconstructs its baseline from Firestore — which
-erases the only real advantage an always-on process has, in-memory continuity.
-Once that is gone, paying for a 24/7 process buys nothing. Polling alone is not
-a reason to adopt a server.
+**Chosen: Cloud Run Service + Cloud Scheduler.** The service is request-triggered
+and stateless: every cycle reconstructs its baseline from Firestore. That keeps
+the same idempotent collector behavior while avoiding an always-on process. It
+preserves the original job-over-always-on-service decision rather than reversing
+it into an always-on service.
 
-*Cost check:* 8,640 executions/month × ~5 s ≈ 43k vCPU-seconds against a 180k
-free tier; ~9k Firestore writes/month against 20k/day free.
+*Cost check:* before cutover, Cloud Run billing for 2026-09-01 through 2026-09-15
+was $5.58 gross, with $4.61 covered by the free tier and $0.97 billed. The old
+estimate ignored the one-minute billing floor and one-CPU assumption, so it is
+not used as a budget baseline.
 
-*Accepted cost:* ~288 cold starts a day, each paying the unavoidable ~430 ms
-`thinqconnect` import plus interpreter start — 2–4 s per run, irrelevant at this
-cadence. The mitigation is a slim base image, not a different architecture.
+*Post-cutover measurement (checked 2026-09-21):* over 5.44 days after the
+cutover, Cloud Monitoring reported 3,205.7 seconds of Cloud Run
+`container/billable_instance_time` for 1,567 completed cycles. The billable unit
+is request-active instance time rounded to 100 ms. At 0.5 vCPU this projects to
+about 8.8k vCPU-seconds per 30-day month. Including the approximately 18k
+vCPU-seconds/month used by `backlogium-steamapi-poller`, the projected shared
+draw is about 26.8k, or 14.9% of the 180,000 request-based free allowance.
+
+*Verified billing check (checked 2026-09-21):* the Cloud Billing report for the
+2026-09-16 through 2026-09-21 charge period, filtered to this project and Cloud
+Run and grouped by SKU, contains only request-based service SKUs. It reports
+1,393.47 vCPU-seconds under `Services CPU Tier 2 (Request-based billing)`,
+1,391.6 GiB-seconds of request-based memory, 1,321 requests, and zero GiB of
+internet data transfer. No instance-based CPU SKU appears. The unrounded subtotal
+is $0.047062 ($0.05 rounded). The filtered report shows no visible free-tier
+credit, so the documented result is the actual subtotal rather than an assertion
+that the service costs exactly $0. The relevant monthly allowances are 180,000
+vCPU-seconds, 360,000 GiB-seconds, and two million requests per billing account.
+
+Keep the service at 0.5 vCPU. Reducing it to 0.25 vCPU would save at most about
+4.4k vCPU-seconds/month while the shared workloads already use less than 15% of
+the CPU allowance; the extra latency and reduced CPU headroom are not justified.
 
 ### What is actually deployed
+
 
 | | |
 |---|---|
 | Project | `airchive-telemetry-poller` |
 | Region | `asia-southeast1` (same as Firestore) |
-| Image | `asia-southeast1-docker.pkg.dev/airchive-telemetry-poller/airchive/collector:0.1.0` |
-| Job | `airchive-poll`, args `poll --once`, 512Mi / 1 CPU, `--max-retries=1`, 300s timeout |
-| Collector identity | `airchive-collector@…` — **`roles/datastore.user` only** |
-| Scheduler identity | `airchive-scheduler@…` — **`roles/run.invoker` on that one job only** |
+| Image | `asia-southeast1-docker.pkg.dev/airchive-telemetry-poller/airchive/collector:0.2.0` |
+| Service | `airchive-poll-svc`, 512Mi / 0.5 vCPU, concurrency 1, min 0, 120s timeout |
+| Collector identity | `airchive-collector@airchive-telemetry-poller.iam.gserviceaccount.com` - `roles/datastore.user` |
+| Scheduler identity | `airchive-scheduler@airchive-telemetry-poller.iam.gserviceaccount.com` - `roles/run.invoker` on `airchive-poll-svc` |
 | Secret | `lg-thinq-pat`, injected as `LG_THINQ_PAT` at runtime |
-| Trigger | `airchive-poll-5min`, `*/5 * * * *`, Asia/Manila |
+| Trigger | `airchive-poll-5min`, `*/5 * * * *`, Asia/Manila, OIDC `POST /poll` |
 
 Two identities rather than one is deliberate. Cloud Scheduler needs
-`run.invoker` to start the job; granting that to the collector would widen an
-identity whose entire point is that it can do nothing but write telemetry. Each
-service account holds exactly one role.
+`run.invoker` to invoke the service; granting that to the collector would widen
+an identity whose entire point is that it can do nothing but write telemetry.
+Each service account holds exactly one role.
 
 ### Steps
 
 ```bash
-PROJECT=lg-ac-telemetry
+PROJECT=airchive-telemetry-poller
 REGION=asia-southeast1
+IMAGE=$REGION-docker.pkg.dev/$PROJECT/airchive/collector:0.2.0
+SERVICE=airchive-poll-svc
+SCHEDULER=airchive-poll-5min
+COLLECTOR_SA=airchive-collector@$PROJECT.iam.gserviceaccount.com
+SCHEDULER_SA=airchive-scheduler@$PROJECT.iam.gserviceaccount.com
 
 # 1. Build and push the image.
-gcloud builds submit --tag gcr.io/$PROJECT/airchive:latest
+docker build --tag collector:0.2.0 .
+docker tag collector:0.2.0 $IMAGE
+docker push $IMAGE
 
 # 2. A service account with exactly one role.
-gcloud iam service-accounts create airchive-collector \
-    --display-name="Airchive telemetry collector"
 gcloud projects add-iam-policy-binding $PROJECT \
-    --member="serviceAccount:airchive-collector@$PROJECT.iam.gserviceaccount.com" \
+    --member="serviceAccount:$COLLECTOR_SA" \
     --role="roles/datastore.user"
 
-# 3. The PAT lives in Secret Manager, never in the image.
-printf '%s' "$LG_THINQ_PAT" | gcloud secrets create lg-thinq-pat --data-file=-
-gcloud secrets add-iam-policy-binding lg-thinq-pat \
-    --member="serviceAccount:airchive-collector@$PROJECT.iam.gserviceaccount.com" \
-    --role="roles/secretmanager.secretAccessor"
-
-# 4. The job. No key file: credentials come from the attached identity.
-gcloud run jobs create airchive-poll \
-    --image=gcr.io/$PROJECT/airchive:latest \
+# 3. The request-triggered service. No key file: credentials come from the identity.
+gcloud run deploy $SERVICE \
+    --image=$IMAGE \
     --region=$REGION \
-    --service-account=airchive-collector@$PROJECT.iam.gserviceaccount.com \
+    --service-account=$COLLECTOR_SA \
     --set-secrets=LG_THINQ_PAT=lg-thinq-pat:latest \
     --set-env-vars=FIREBASE_PROJECT_ID=$PROJECT,LG_COUNTRY_CODE=PH,LG_CLIENT_ID=...,LG_DEVICE_ID=...,LG_ENERGY_PROPERTY=...,LG_DAY_TIMEZONE=Asia/Manila \
-    --max-retries=1 \
-    --task-timeout=300s
+    --cpu=0.5 --memory=512Mi --concurrency=1 --min=0 --timeout=120s \
+    --no-allow-unauthenticated
 
-gcloud run jobs execute airchive-poll --region=$REGION --wait
+gcloud run services add-iam-policy-binding $SERVICE --region=$REGION \
+    --member="serviceAccount:$SCHEDULER_SA" --role=roles/run.invoker
 
-# 5. Every five minutes.
-gcloud scheduler jobs create http airchive-poll-schedule \
+# 4. Every five minutes, with an OIDC token accepted by the service.
+gcloud scheduler jobs update http $SCHEDULER \
     --location=$REGION \
     --schedule="*/5 * * * *" \
-    --uri="https://$REGION-run.googleapis.com/apis/run.googleapis.com/v1/namespaces/$PROJECT/jobs/airchive-poll:run" \
+    --uri="https://SERVICE_URL/poll" \
     --http-method=POST \
-    --oauth-service-account-email=airchive-collector@$PROJECT.iam.gserviceaccount.com
+    --oidc-service-account-email=$SCHEDULER_SA \
+    --oidc-token-audience="https://SERVICE_URL"
 ```
 
-`--max-retries=1` is deliberate: a retried invocation is safe (writes are
-idempotent by slot with completeness precedence) but rarely useful, since the
-next slot is only five minutes away.
+The service has no unauthenticated ingress. The Scheduler identity is granted
+`roles/run.invoker` only on this service, and the OIDC audience is the service
+URL rather than the `/poll` path. Keep the generated service URL in the
+Scheduler target and use the deployed image digest for a reproducible rollback.
+
+The Artifact Registry repository has a `delete-untagged` cleanup policy. On
+2026-09-21, the superseded `0.1.0` and `0.1.1` indexes and their four untagged
+child manifests were removed after confirming the deployed revision uses the
+`0.2.0` digest. `latest` now also names `0.2.0`. Repository size changed from
+310.301 MB to 310.295 MB; the small reduction means the old releases shared
+their large layer blobs with the retained image.
 
 ### Verifying a deployment
 
-1. `gcloud run jobs execute airchive-poll --region=$REGION --wait` → then
-   `airchive latest --limit 1` shows the new observation.
-2. Let three scheduled executions run → `airchive latest --limit 3` shows three
-   distinct sequential sample IDs, five minutes apart.
-3. In Cloud Logging, filter on the `sampleId` from a stored observation; its
-   cycle logs come back. That correlation is the whole point of the identifier.
+1. Check the service configuration and IAM: the service must be private,
+   concurrency 1, min 0, and the Scheduler service account must have
+   `roles/run.invoker` on this service.
+2. Run the Scheduler once, then `airchive latest --limit 1` shows the new
+   observation and `airchive health` shows a current `lastSuccessAt`.
+3. Let three scheduled executions run. Confirm sequential sample IDs, roughly
+   five-minute spacing, HTTP 200 request logs, and no negative intervals.
 
-**Rollback** is pausing the Scheduler job. Collected telemetry is append-only and
-unaffected; the next run resumes from Firestore state and marks the gap
-`COARSE_INTERVAL`. There is no destructive step to reverse.
+
+**Rollback** is pausing the Scheduler job or pointing it back to a known-good
+service revision. Collected telemetry is append-only and unaffected; the next
+run resumes from Firestore state and marks any gap `COARSE_INTERVAL`. There is
+no destructive step to reverse.
 
 ---
 
@@ -529,8 +568,15 @@ the series and never used as an analytics source:
 | `leaseUntil`, `leaseHolder` | The overlap-prevention lease |
 | `collectorVersion` | Which build wrote it |
 
-Worth alerting on: `consecutiveFailures` climbing, and `lastErrorClass` being
-`AUTH_FATAL` or `CONFIG_FATAL` — those never recover on their own.
+For a request-triggered service, health and observation evidence are the
+liveness source; platform execution records are not. A failed invocation
+can still advance `lastAttemptAt`, while `lastSuccessAt` remains stale. If both
+timestamps stop advancing, inspect Scheduler and Cloud Run service logs before
+assuming a device problem.
+
+Worth alerting on: no completed-cycle evidence for 30 minutes, and
+`consecutiveFailures` climbing with `lastErrorClass` equal to `AUTH_FATAL` or
+`CONFIG_FATAL`. Those fatal classes never recover on their own.
 
 ---
 
@@ -565,11 +611,12 @@ Two policies close that, both notifying `paulandretadiar012703@gmail.com`:
 
 | Policy | Fires when | Why it matters |
 |---|---|---|
-| **Collector has stopped producing observations** | No completed cycle for 30 minutes, against a 5-minute schedule | Catches everything that stops execution outright: scheduler disabled, job broken, billing lapsed, image unpullable |
+| **Collector has stopped producing observations** | No completed service cycle for 30 minutes, against a 5-minute schedule | Catches everything that stops execution outright: Scheduler disabled, service broken, billing lapsed, image unpullable |
 | **Fatal condition, collection will not resume on its own** | `AUTH_FATAL`, `CONFIG_FATAL`, or any `ERROR`-severity cycle log | These are deliberately never retried, so nothing else will surface them |
 
 The first rests on a log-based metric, `airchive_cycle_success`, counting
-`cycle complete` records from the job. The second matches structured log fields
+`cycle complete` records emitted by the collector. Its absence is independent
+of platform execution records. The second matches structured collector log fields
 directly — no code change was needed to enable it, because the runtime spec
 already required every cycle to log its per-source failure classes.
 
@@ -580,8 +627,16 @@ rotation, which is the case it will most often be reporting:
 printf '%s' "$NEW_PAT" | gcloud secrets versions add lg-thinq-pat --data-file=-
 ```
 
-The job reads `lg-thinq-pat:latest`, so the next scheduled cycle picks up a new
-version with no redeploy.
+The service reads `lg-thinq-pat:latest`, so the next scheduled cycle picks up a
+new version with no redeploy.
+
+The absence path was exercised during cutover with a temporary policy using the
+same `airchive_cycle_success` metric and `cloud_run_revision` resource. Cloud
+Monitoring opened the alert at 2026-09-15 18:38:11 UTC and closed it at
+18:38:44 UTC after cycle evidence resumed. This proves a stalled invocation is
+reportable. An invoked-but-failing cycle is distinct: `lastAttemptAt` advances
+while `lastSuccessAt` remains stale, `consecutiveFailures` increases, and the
+fatal-condition policy reports its collector-written failure class or error log.
 
 **What is deliberately not alerted:** `DEVICE_OFFLINE`, `RATE_LIMITED`,
 `UNCHANGED_COUNTER`, coarse intervals, and unresolved rollovers. Each is a

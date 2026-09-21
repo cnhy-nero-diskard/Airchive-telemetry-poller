@@ -23,6 +23,7 @@ airchive check-firestore     # prove storage connectivity
 airchive discover            # find the device, its energy property, unit, precision
 airchive validate-counter    # does the daily counter advance intraday?
 airchive poll --once         # one cycle
+airchive serve               # authenticated request-triggered service
 airchive latest              # recent observations
 airchive health              # collector health
 airchive dashboard           # local read-only UI at 127.0.0.1

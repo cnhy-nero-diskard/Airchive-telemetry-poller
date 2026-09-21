@@ -1,7 +1,7 @@
 """Command-line entry point.
 
 One entry point, one subcommand per operator task (design D15). Everything is
-read-only except `poll`.
+read-only except `poll` and an accepted `serve` request.
 """
 
 from __future__ import annotations
@@ -62,6 +62,8 @@ def build_parser() -> argparse.ArgumentParser:
     poll.add_argument(
         "--once", action="store_true", help="Run exactly one cycle and exit (scheduled-job mode)"
     )
+
+    sub.add_parser("serve", help="Run the request-triggered collector service")
 
     latest = sub.add_parser("latest", help="List the most recent stored observations")
     latest.add_argument("--limit", type=int, default=10, help="How many to list (default: 10)")
@@ -126,6 +128,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         from airchive.commands import poll as poll_cmd
 
         return poll_cmd.run(once=args.once)
+
+    if args.command == "serve":
+        from airchive import serve as serve_cmd
+
+        return serve_cmd.run()
 
     if args.command == "check-firestore":
         from airchive.commands import check_firestore
