@@ -30,26 +30,26 @@
 
 ## 5. Liveness detection
 
-- [ ] 5.1 Re-key the "no completed cycle for 30 minutes" signal onto collector health and observation recency rather than Cloud Run Job execution records; verify it still fires by simulating a stalled collector
-- [ ] 5.2 Confirm the signal distinguishes "not being invoked" from "invoked but every cycle failing"; verify both conditions produce a distinct, reportable state
-- [ ] 5.3 Complete this group before task 6.1 — deleting the job first would silently disable the alert
+- [x] 5.1 Re-key the "no completed cycle for 30 minutes" signal onto collector health and observation recency rather than Cloud Run Job execution records; verify it still fires by simulating a stalled collector
+- [x] 5.2 Confirm the signal distinguishes "not being invoked" from "invoked but every cycle failing"; verify both conditions produce a distinct, reportable state
+- [x] 5.3 Complete this group before task 6.1 — deleting the job first would silently disable the alert
 
 ## 6. Retire the job
 
 - [x] 6.1 Delete the `airchive-poll` job; verify `gcloud run jobs list` no longer lists it
 - [x] 6.2 Revoke the scheduler identity's `run.invoker` on the deleted job if any binding survives; verify the scheduler retains that role only on the service
-- [ ] 6.3 Add an Artifact Registry cleanup policy removing untagged images; verify the four current untagged versions are collected and repo size drops
+- [x] 6.3 Add an Artifact Registry cleanup policy removing untagged images; verify the four current untagged versions are collected and repo size drops
 
 ## 7. Cost verification
 
-- [ ] 7.1 After 48 hours on the service, read actual billed Cloud Run usage from the billing console grouped by SKU; verify the instance-based CPU SKU no longer appears
-- [ ] 7.2 Compute realised vCPU-seconds/month from measured durations and compare against the 180,000 request-based allowance, including backlogium's ~18,000; verify total draw is under 60%
-- [ ] 7.3 Decide from measured data whether to drop to 0.25 vCPU per design.md D4; verify the decision and its basis are written down either way
+- [x] 7.1 After 48 hours on the service, read actual billed Cloud Run usage from the billing console grouped by SKU; verify the instance-based CPU SKU no longer appears
+- [x] 7.2 Compute realised vCPU-seconds/month from measured durations and compare against the 180,000 request-based allowance, including backlogium's ~18,000; verify total draw is under 60%
+- [x] 7.3 Decide from measured data whether to drop to 0.25 vCPU per design.md D4; verify the decision and its basis are written down either way
 - [x] 7.4 Create a billing budget alert on the billing account at a $1 threshold; verify an alert exists and names a notification target
 
 ## 8. Documentation
 
-- [ ] 8.1 Replace the falsified cost check in `docs/operations.md` ("8,640 executions/month × ~5 s ≈ 43k vCPU-seconds against a 180k free tier") with the verified figure from task 7.1, stating billable unit, allowance, and date checked
+- [x] 8.1 Replace the falsified cost check in `docs/operations.md` ("8,640 executions/month × ~5 s ≈ 43k vCPU-seconds against a 180k free tier") with the verified figure from task 7.1, stating billable unit, allowance, and date checked
 - [x] 8.2 Update the deployment topology table so the cost row reflects billing granularity, and record why a request-billed service preserves — rather than reverses — the original job-over-always-on-service decision
 - [x] 8.3 Update the "What is actually deployed" table: service instead of job, new image tag, CPU, concurrency, min instances, and the OIDC trigger
 - [x] 8.4 Update the collector-health section to describe the re-keyed liveness signal; verify it no longer references job executions

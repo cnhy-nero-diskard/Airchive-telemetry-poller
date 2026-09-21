@@ -135,11 +135,28 @@ was $5.58 gross, with $4.61 covered by the free tier and $0.97 billed. The old
 estimate ignored the one-minute billing floor and one-CPU assumption, so it is
 not used as a budget baseline.
 
-*Preliminary service measurement:* the first three scheduled service cycles took
-1.75 s, 1.80 s, and 1.61 s (mean 1.72 s) at 0.5 vCPU. That projects to roughly
-7.4k vCPU-seconds/month before other Cloud Run billing dimensions. Treat this as
-an engineering estimate until the first 48-hour post-cutover billing window is
-available on 2026-09-17 18:06 UTC.
+*Post-cutover measurement (checked 2026-09-21):* over 5.44 days after the
+cutover, Cloud Monitoring reported 3,205.7 seconds of Cloud Run
+`container/billable_instance_time` for 1,567 completed cycles. The billable unit
+is request-active instance time rounded to 100 ms. At 0.5 vCPU this projects to
+about 8.8k vCPU-seconds per 30-day month. Including the approximately 18k
+vCPU-seconds/month used by `backlogium-steamapi-poller`, the projected shared
+draw is about 26.8k, or 14.9% of the 180,000 request-based free allowance.
+
+*Verified billing check (checked 2026-09-21):* the Cloud Billing report for the
+2026-09-16 through 2026-09-21 charge period, filtered to this project and Cloud
+Run and grouped by SKU, contains only request-based service SKUs. It reports
+1,393.47 vCPU-seconds under `Services CPU Tier 2 (Request-based billing)`,
+1,391.6 GiB-seconds of request-based memory, 1,321 requests, and zero GiB of
+internet data transfer. No instance-based CPU SKU appears. The unrounded subtotal
+is $0.047062 ($0.05 rounded). The filtered report shows no visible free-tier
+credit, so the documented result is the actual subtotal rather than an assertion
+that the service costs exactly $0. The relevant monthly allowances are 180,000
+vCPU-seconds, 360,000 GiB-seconds, and two million requests per billing account.
+
+Keep the service at 0.5 vCPU. Reducing it to 0.25 vCPU would save at most about
+4.4k vCPU-seconds/month while the shared workloads already use less than 15% of
+the CPU allowance; the extra latency and reduced CPU headroom are not justified.
 
 ### What is actually deployed
 
@@ -208,6 +225,13 @@ The service has no unauthenticated ingress. The Scheduler identity is granted
 `roles/run.invoker` only on this service, and the OIDC audience is the service
 URL rather than the `/poll` path. Keep the generated service URL in the
 Scheduler target and use the deployed image digest for a reproducible rollback.
+
+The Artifact Registry repository has a `delete-untagged` cleanup policy. On
+2026-09-21, the superseded `0.1.0` and `0.1.1` indexes and their four untagged
+child manifests were removed after confirming the deployed revision uses the
+`0.2.0` digest. `latest` now also names `0.2.0`. Repository size changed from
+310.301 MB to 310.295 MB; the small reduction means the old releases shared
+their large layer blobs with the retained image.
 
 ### Verifying a deployment
 
@@ -605,6 +629,14 @@ printf '%s' "$NEW_PAT" | gcloud secrets versions add lg-thinq-pat --data-file=-
 
 The service reads `lg-thinq-pat:latest`, so the next scheduled cycle picks up a
 new version with no redeploy.
+
+The absence path was exercised during cutover with a temporary policy using the
+same `airchive_cycle_success` metric and `cloud_run_revision` resource. Cloud
+Monitoring opened the alert at 2026-09-15 18:38:11 UTC and closed it at
+18:38:44 UTC after cycle evidence resumed. This proves a stalled invocation is
+reportable. An invoked-but-failing cycle is distinct: `lastAttemptAt` advances
+while `lastSuccessAt` remains stale, `consecutiveFailures` increases, and the
+fatal-condition policy reports its collector-written failure class or error log.
 
 **What is deliberately not alerted:** `DEVICE_OFFLINE`, `RATE_LIMITED`,
 `UNCHANGED_COUNTER`, coarse intervals, and unresolved rollovers. Each is a
