@@ -103,10 +103,29 @@ def test_launch_uses_injected_runner_without_a_shell():
 
 def test_cli_dashboard_dispatch_does_not_launch_real_server(monkeypatch):
     invoked = []
-    monkeypatch.setattr("airchive.dashboard.launch.run", lambda: invoked.append(True) or 0)
+    monkeypatch.setattr(
+        "airchive.dashboard.launch.run",
+        lambda *args, **kwargs: invoked.append((args, kwargs)) or 0,
+    )
 
     assert cli.main(["dashboard"]) == 0
-    assert invoked == [True]
+    assert invoked == [((), {"port": None})]
+
+
+def test_cli_dashboard_forwards_port(monkeypatch):
+    invoked = []
+    monkeypatch.setattr(
+        "airchive.dashboard.launch.run",
+        lambda *args, **kwargs: invoked.append((args, kwargs)) or 0,
+    )
+
+    assert cli.main(["dashboard", "--port", "8888"]) == 0
+    assert invoked == [((), {"port": 8888})]
+
+
+def test_launch_command_includes_port_when_given():
+    assert "--server.port=8888" in command(port=8888)
+    assert not any(arg.startswith("--server.port=") for arg in command())
 
 
 def test_launch_handles_local_interrupt_without_a_traceback():

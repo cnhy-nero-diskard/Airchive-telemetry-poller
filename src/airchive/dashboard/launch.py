@@ -11,9 +11,9 @@ from typing import Any
 from airchive.dashboard.theme import theme_options
 
 
-def command() -> list[str]:
+def command(*, port: int | None = None) -> list[str]:
     app_path = Path(__file__).with_name("app.py").resolve()
-    return [
+    argv = [
         sys.executable,
         "-m",
         "streamlit",
@@ -25,16 +25,20 @@ def command() -> list[str]:
         "--browser.gatherUsageStats=false",
         *theme_options(),
     ]
+    if port is not None:
+        argv.append(f"--server.port={port}")
+    return argv
 
 
 def run(
     *,
+    port: int | None = None,
     runner: Callable[..., Any] = subprocess.run,
     argv: Sequence[str] | None = None,
 ) -> int:
     """Run Streamlit and return its exit code without invoking a shell."""
     try:
-        completed = runner([*command(), *(argv or ())], check=False)
+        completed = runner([*command(port=port), *(argv or ())], check=False)
     except KeyboardInterrupt:
         return 130
     return int(completed.returncode)
