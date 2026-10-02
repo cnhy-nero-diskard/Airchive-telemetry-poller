@@ -36,7 +36,7 @@ RUN useradd --create-home --uid 10001 collector
 USER collector
 WORKDIR /home/collector
 
-# One cycle per invocation: every run reconstructs its state from Firestore, so
+# One cycle per request: every request reconstructs its state from Firestore, so
 # there is no in-memory continuity to lose between scheduled executions.
 ENTRYPOINT ["airchive"]
-CMD ["poll", "--once"]
+CMD ["serve"]

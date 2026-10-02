@@ -1,7 +1,7 @@
 """Command-line entry point.
 
 One entry point, one subcommand per operator task (design D15). Everything is
-read-only except `poll`.
+read-only except `poll` and an accepted `serve` request.
 """
 
 from __future__ import annotations
@@ -63,6 +63,8 @@ def build_parser() -> argparse.ArgumentParser:
         "--once", action="store_true", help="Run exactly one cycle and exit (scheduled-job mode)"
     )
 
+    sub.add_parser("serve", help="Run the request-triggered collector service")
+
     latest = sub.add_parser("latest", help="List the most recent stored observations")
     latest.add_argument("--limit", type=int, default=10, help="How many to list (default: 10)")
 
@@ -79,7 +81,13 @@ def build_parser() -> argparse.ArgumentParser:
         "compare", help="Diff the latest stored observation against a fresh live reading"
     )
 
-    sub.add_parser("dashboard", help="Open the local read-only telemetry dashboard")
+    dashboard = sub.add_parser("dashboard", help="Open the local read-only telemetry dashboard")
+    dashboard.add_argument(
+        "--port",
+        type=int,
+        default=None,
+        help="Local port for the dashboard (default: Streamlit default 8501)",
+    )
 
     return parser
 
@@ -95,7 +103,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.command == "dashboard":
         from airchive.dashboard.launch import run
 
-        return run()
+        if args.port is not None and not 1 <= args.port <= 65535:
+            parser.error("--port must be between 1 and 65535")
+        return run(port=args.port)
 
     load_dotenv()
 
@@ -126,6 +136,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         from airchive.commands import poll as poll_cmd
 
         return poll_cmd.run(once=args.once)
+
+    if args.command == "serve":
+        from airchive import serve as serve_cmd
+
+        return serve_cmd.run()
 
     if args.command == "check-firestore":
         from airchive.commands import check_firestore
