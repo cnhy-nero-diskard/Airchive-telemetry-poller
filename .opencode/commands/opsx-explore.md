@@ -1,6 +1,6 @@
-# OPSX: Explore
-
-Enter explore mode - think through ideas, investigate problems, clarify requirements
+---
+description: "Enter explore mode - think through ideas, investigate problems, clarify requirements"
+---
 
 Enter explore mode. Think deeply. Visualize freely. Follow the conversation wherever it goes.
 
@@ -16,6 +16,7 @@ Enter explore mode. Think deeply. Visualize freely. Follow the conversation wher
 - A change name: "add-dark-mode" (to explore in context of that change)
 - A comparison: "postgres vs sqlite for this"
 - Nothing (just enter explore mode)
+**Provided arguments**: $ARGUMENTS
 
 ---
 

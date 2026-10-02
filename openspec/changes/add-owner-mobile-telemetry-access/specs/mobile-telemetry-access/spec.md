@@ -61,6 +61,20 @@ Allowed telemetry reads SHALL retain `observedAt`, `persistedAt`, `reconciledAt`
 - **WHEN** an observation has a null interval value or non-normal quality status
 - **THEN** the documented read contract SHALL identify it as missing, incomplete, or anomalous data rather than measured zero
 
+### Requirement: Required device identity is verified before enrollment
+
+Before enabling an owner, the operator SHALL verify that the configured root device identity document exists and identifies the same device as the deployed collector and mobile client. If it is absent, its initialization SHALL require explicit operator authorization and server-side credentials, SHALL use a create-only precondition, and SHALL NOT alter existing telemetry, daily totals, metadata, or runtime documents. The bootstrap SHALL NOT grant mobile write access or change collector behavior.
+
+#### Scenario: Required device identity is missing during rollout
+- **WHEN** live review confirms the configured root identity document is absent and the operator explicitly authorizes its initialization
+- **THEN** the operator SHALL create only that identity document with the verified device ID and a server update timestamp
+- **AND** existing documents and subcollections SHALL remain unchanged
+
+#### Scenario: Identity already exists or the identifiers disagree
+- **WHEN** the identity document exists or the reviewed project/device identifiers do not match
+- **THEN** a create-only bootstrap SHALL NOT overwrite that document
+- **AND** the operator SHALL resolve any identifier mismatch before enabling enrollment
+
 ### Requirement: Owner setup and revocation are documented
 
 Operator documentation SHALL explain Firebase app registration, authentication setup, owner UID enrollment, supported read paths, the distinction between Firebase sign-in and the separate LG ThinQ token, and how to revoke mobile reads. It SHALL state that service-account credentials MUST NOT be installed on a phone.

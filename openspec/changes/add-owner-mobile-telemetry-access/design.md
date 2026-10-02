@@ -46,6 +46,10 @@ Automate rules tests in the Firebase emulator for enrolled owner, other UID, ano
 
 The local-only implementation is authorized to build and test the rules with emulator fixture identities, but not to enroll a real owner or change live Firebase configuration. On 2026-10-01, Firebase CLI confirmed project `airchive-telemetry-poller` and its `(default)` Firestore database in `asia-southeast1`; `firebase apps:list ANDROID` returned no Android clients, and an unauthenticated document read returned HTTP 403. The local `.env` names the same project and contains a configured device ID, but `gcloud` is unavailable, so the deployed Cloud Run device ID and full live rules configuration could not be independently compared. Keep the checked-in rules behind an explicit disabled-by-default enrollment gate with unset owner/device placeholders. Emulator tests may substitute fixture values and enable that gate only in the emulator rules text. Do not register an app, enable an Auth provider, insert a real owner UID, or deploy rules until the app package, provider, signed-in owner UID, deployed device ID, and target project have been reviewed.
 
+### D6: Bootstrap a missing identity document only with explicit operator approval
+
+Live review on 2026-10-02 found observations and collector health under the configured device, but no root `devices/{deviceId}` document. AirchiveApp requires that document to verify owner access. The user explicitly approved initializing this one missing document before rules deployment. Use the verified deployed device ID and a server `updatedAt` timestamp, without guessing alias/model metadata. Use a create-only precondition so an existing document is never overwritten. This is an operator-side bootstrap, not mobile write access, a collector behavior change, or a migration of historical telemetry. Existing subcollections remain untouched. Keep the repository rules template closed and deploy only a reviewed enrollment copy after the document and identifiers are verified.
+
 ## Risks / Trade-offs
 
 - [A wrong UID or device ID blocks onboarding or grants the wrong account access] -> Keep rules deny-all until the operator verifies both exact identifiers; test them in the emulator and smoke-test after deployment.
@@ -57,7 +61,7 @@ The local-only implementation is authorized to build and test the rules with emu
 ## Migration Plan
 
 1. Keep existing deny-all rules until the future app can sign in and the owner UID is known. Register the Android app and enable the chosen Firebase Authentication provider in the same project.
-2. Implement and test exact-path, UID, device, and query-limit rules locally. Document owner enrollment and revocation. No data migration is needed.
+2. Implement and test exact-path, UID, device, and query-limit rules locally. Document owner enrollment and revocation. No historical telemetry migration is needed; if the root device identity is absent, perform only the separately authorized create-only bootstrap described in D6.
 3. Review the intended Firebase project and owner/device identifiers before deploying rules. Perform authorized and denied mobile reads, then confirm collector and local-dashboard access.
 4. Hand the documented read contract to AirchiveApp for first-run onboarding, local Room synchronization, and direct ThinQ controls.
 

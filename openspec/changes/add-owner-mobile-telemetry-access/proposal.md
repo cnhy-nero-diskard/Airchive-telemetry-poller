@@ -8,6 +8,7 @@ Airchive's Firestore rules currently deny every mobile client because the collec
 - Continue denying all mobile writes and all other document paths; keep the collector's server-side access and local dashboard behavior intact.
 - Document the one-time owner enrollment, Firebase project setup, and the mobile read contract, including bounded initial history and incremental refresh after persistence or reconciliation updates.
 - Add emulator-backed authorization and query tests before any rules deployment.
+- If live review finds the required root device identity document missing, permit an explicitly authorized, create-only server-side bootstrap of that one document before enrollment; leave telemetry history and collector behavior unchanged.
 
 ## Capabilities
 
