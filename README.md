@@ -35,5 +35,7 @@ airchive dashboard           # local read-only UI at 127.0.0.1
 - [docs/operations.md](docs/operations.md) — configuration, deployment, the data
   model, interval semantics, the quality model, inspection, and known API
   limitations.
+- [docs/mobile-access.md](docs/mobile-access.md) — the read-only Firebase
+  handoff and rollout gate for the separate AirchiveApp.
 - [docs/discovery-findings.md](docs/discovery-findings.md) — what the real
   device does, recorded from `discover` and `validate-counter`.

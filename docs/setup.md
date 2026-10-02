@@ -59,20 +59,17 @@ document appears here.
 
 ---
 
-## 2. Lock client access shut
+## 2. Keep client access closed by default
 
 The collector uses server-side Admin credentials, which bypass Firestore
-security rules altogether. Rules therefore exist here only to close the *client*
-surface — and since no frontend exists in this system, that surface should be
-shut completely.
+security rules altogether. The checked-in [`firestore.rules`](../firestore.rules)
+has a disabled mobile-access gate, pending owner/device values, and a recursive
+deny rule. This keeps direct client access closed until the separate AirchiveApp
+owner-enrollment procedure is ready and explicitly reviewed.
 
-The repository ships the rules in [`firestore.rules`](../firestore.rules):
-
-```
-match /{document=**} {
-  allow read, write: if false;
-}
-```
+Do not paste a partial rules snippet or enable the pending gate to make a client
+work. The future, narrowly scoped mobile read contract and its enrollment
+procedure are documented in [mobile-access.md](mobile-access.md).
 
 Apply them either way:
 
@@ -82,11 +79,11 @@ Apply them either way:
 
 ### Confirm
 
-- In the console's **Rules Playground**, simulate an unauthenticated `get` on
-  `telemetry/anything`. It must be **denied**.
+- In the console's **Rules Playground**, simulate an unauthenticated `get` on an
+  Airchive document. It must be **denied** while mobile access is not enrolled.
 - Server-side access is unaffected — step 4 proves this by writing a document
-  with Admin credentials while the rules stay closed. Both facts together are
-  the check: clients denied, collector still able to write.
+  with Admin credentials. Together these checks confirm that client access stays
+  closed while the collector can still write.
 
 ---
 

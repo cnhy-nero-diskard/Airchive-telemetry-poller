@@ -1,12 +1,53 @@
 rules_version = '2';
 
-// Airchive telemetry is written and read exclusively by the server-side
-// collector using Admin/IAM credentials, which bypass these rules entirely.
-// There is no frontend, so every direct client path is closed. Do not open
-// these rules to "make testing easier" — the console and the `airchive`
-// inspection commands both work with them closed.
 service cloud.firestore {
   match /databases/{database}/documents {
+    // Production remains closed until the app identity and device are verified.
+    // Emulator tests substitute fixture values and enable this gate only in
+    // the emulator's in-memory rules; never deploy those substituted rules.
+    function mobileAccessEnabled() {
+      return false;
+    }
+
+    function enrolledOwnerUid() {
+      return '__MOBILE_OWNER_UID_PENDING__';
+    }
+
+    function configuredDeviceId() {
+      return '__AIRCHIVE_DEVICE_ID_PENDING__';
+    }
+
+    function isEnrolledOwner(deviceId) {
+      return mobileAccessEnabled()
+        && request.auth != null
+        && request.auth.uid == enrolledOwnerUid()
+        && deviceId == configuredDeviceId();
+    }
+
+    function hasBoundedPage() {
+      return request.query.limit != null
+        && request.query.limit > 0
+        && request.query.limit <= 250;
+    }
+
+    match /devices/{deviceId} {
+      allow get: if isEnrolledOwner(deviceId);
+    }
+
+    match /devices/{deviceId}/telemetry/{sampleId} {
+      allow get: if isEnrolledOwner(deviceId);
+      allow list: if isEnrolledOwner(deviceId) && hasBoundedPage();
+    }
+
+    match /devices/{deviceId}/dailyTotals/{localDate} {
+      allow get: if isEnrolledOwner(deviceId);
+      allow list: if isEnrolledOwner(deviceId) && hasBoundedPage();
+    }
+
+    match /devices/{deviceId}/runtime/collector {
+      allow get: if isEnrolledOwner(deviceId);
+    }
+
     match /{document=**} {
       allow read, write: if false;
     }

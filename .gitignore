@@ -27,6 +27,10 @@ dist/
 .coverage
 htmlcov/
 
+# Node-based Firestore rules test harness
+node_modules/
+npm-debug.log*
+
 # --- Editors / OS ---
 .DS_Store
 Thumbs.db

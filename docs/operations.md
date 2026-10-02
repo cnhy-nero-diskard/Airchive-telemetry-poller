@@ -609,8 +609,9 @@ appears in no rendered log record, no formatted traceback, no serialized
 failure, and no command's output.
 
 Beyond that: no key file in the image, no key file in the repository, Firestore
-client rules denied, `roles/datastore.user` and nothing more, and the PAT from
-Secret Manager at runtime.
+client rules deny by default with mobile reads gated until explicit owner
+enrollment, `roles/datastore.user` and nothing more, and the PAT from Secret
+Manager at runtime.
 
 ---
 
@@ -697,6 +698,10 @@ recreated.
 ```bash
 python -m pytest -q                      # everything, offline, no credentials
 python -m ruff check src tests
+
+# Owner-scoped mobile rules against fixture identities in the Firestore emulator
+npm install
+npm run test:rules
 
 # The persistence rules again, against a real Firestore:
 firebase emulators:exec --only firestore --project demo-airchive \
