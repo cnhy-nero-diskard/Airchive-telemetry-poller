@@ -81,7 +81,13 @@ def build_parser() -> argparse.ArgumentParser:
         "compare", help="Diff the latest stored observation against a fresh live reading"
     )
 
-    sub.add_parser("dashboard", help="Open the local read-only telemetry dashboard")
+    dashboard = sub.add_parser("dashboard", help="Open the local read-only telemetry dashboard")
+    dashboard.add_argument(
+        "--port",
+        type=int,
+        default=None,
+        help="Local port for the dashboard (default: Streamlit default 8501)",
+    )
 
     return parser
 
@@ -97,7 +103,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.command == "dashboard":
         from airchive.dashboard.launch import run
 
-        return run()
+        if args.port is not None and not 1 <= args.port <= 65535:
+            parser.error("--port must be between 1 and 65535")
+        return run(port=args.port)
 
     load_dotenv()
 
